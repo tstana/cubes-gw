@@ -6,7 +6,7 @@
    version="1.0"
    description=""
    tags="INTERNAL_COMPONENT=true"
-   categories="" />
+   categories="System" />
  <parameter name="bonusData"><![CDATA[bonusData 
 {
    element modular_adc_0
@@ -280,7 +280,7 @@
   <parameter name="use_ch6" value="false" />
   <parameter name="use_ch7" value="false" />
   <parameter name="use_ch8" value="false" />
-  <parameter name="use_ch9" value="false" />
+  <parameter name="use_ch9" value="true" />
   <parameter name="use_tsd" value="false" />
  </module>
  <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />

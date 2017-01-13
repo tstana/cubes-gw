@@ -7,6 +7,7 @@ entity bemicro_adc is
   port
   (
     clk_50meg_i : in  std_logic;
+    btn_n_i     : in  std_logic;
     led_n_o     : out std_logic_vector(7 downto 0)
   );
 end entity bemicro_adc;
@@ -68,6 +69,10 @@ architecture struct of bemicro_adc is
   (
     clk_i               : in std_logic;
     
+    rst_a_i             : in  std_logic;
+    
+    channel_sel_i       : in  std_logic;
+    
     cmd_ready_i         : in  std_logic;
     cmd_valid_o         : out std_logic;
     cmd_channel_o       : out std_logic_vector(4 downto 0)
@@ -109,7 +114,10 @@ architecture struct of bemicro_adc is
       rst_a_i             : in  std_logic;
 
       adc_result_valid_i  : in  std_logic;
+      adc_channel_i       : in  std_logic_vector( 4 downto 0);
       adc_result_i        : in  std_logic_vector(11 downto 0);
+
+      chan_display_sel_i  : in  std_logic;
 
       led_o               : out std_logic_vector( 7 downto 0)
     );
@@ -138,10 +146,14 @@ architecture struct of bemicro_adc is
 --  signal ram_addr : std_logic_vector(log2(c_ram_depth)-1 downto 0);
 --  signal ram_data : std_logic_vector(c_ram_width-1 downto 0);
   
-  signal led : std_logic_vector(7 downto 0);
-  
-  signal stim : unsigned(11 downto 0);
-  signal d : unsigned(16 downto 0);
+  signal led                    : std_logic_vector(7 downto 0);
+  signal btn_debounce_count     : unsigned(23 downto 0);
+  signal btn_n_d0               : std_logic;
+  signal btn                    : std_logic;
+  signal chan_display_sel       : std_logic;
+
+  signal stim                   : unsigned(11 downto 0);
+  signal d                      : unsigned(16 downto 0);
   
 begin
 
@@ -190,12 +202,15 @@ begin
     (
       clk_i               => clk_100meg,
 
+      rst_a_i             => '0',
+      
+      channel_sel_i       => chan_display_sel,
+    
       cmd_ready_i         => adc_cmd_ready,
       cmd_valid_o         => adc_cmd_valid,
       cmd_channel_o       => adc_cmd_channel
     );
 
-    
 --  p_stim : process (clk_100meg) is
 --  begin
 --    if rising_edge(clk_100meg) then
@@ -210,6 +225,24 @@ begin
 --  adc_resp_valid <= '1';
 --  adc_resp_data <= std_logic_vector(stim);
   
+  p_chan_display_sel : process (clk_100meg) is
+  begin
+    if rising_edge(clk_100meg) then
+      btn_n_d0 <= btn_n_i;
+      if (btn_n_i = '0') and (btn_n_d0 = '1') then
+        btn <= not btn_n_i;
+      end if;
+      
+      if (btn = '1') then
+        btn_debounce_count <= btn_debounce_count + 1;
+        if (btn_debounce_count = 9_999_999) then
+          btn <= '0';
+          chan_display_sel <= not chan_display_sel;
+        end if;
+      end if;
+    end if;
+  end process;
+  
   cmp_led_pwm : led_pwm
     port map
     (
@@ -217,12 +250,17 @@ begin
 
       rst_a_i             => '0',
 
+      chan_display_sel_i  => chan_display_sel,
       adc_result_valid_i  => adc_resp_valid,
+      adc_channel_i       => adc_resp_channel,
       adc_result_i        => adc_resp_data,
 
       led_o               => led
     );
 
+--  led <= x"f0" when chan_display_sel = '1' else
+--         x"0f";
+  
   led_n_o <= not led;
 
 --  cmp_ram_ctrl : ram_ctrl

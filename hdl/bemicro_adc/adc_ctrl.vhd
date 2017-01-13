@@ -6,7 +6,11 @@ use ieee.numeric_std.all;
 entity adc_ctrl is
   port
   (
-    clk_i               : in std_logic;
+    clk_i               : in  std_logic;
+    
+    rst_a_i             : in  std_logic;
+    
+    channel_sel_i       : in  std_logic;
     
     cmd_ready_i         : in  std_logic;
     cmd_valid_o         : out std_logic;
@@ -17,9 +21,17 @@ end entity adc_ctrl;
 
 architecture arch of adc_ctrl is
 
+  signal chan   : std_logic_vector(4 downto 0);
+  signal valid  : std_logic;
+  
 begin
 
-  cmd_valid_o <= '1';
-  cmd_channel_o <= "00001";
+
+  valid <= '1';
+  chan  <= "00001" when channel_sel_i = '0' else
+           "01001";
+
+  cmd_valid_o   <= valid;
+  cmd_channel_o <= chan;
 
 end architecture;
