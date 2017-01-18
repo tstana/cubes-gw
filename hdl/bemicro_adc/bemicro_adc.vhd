@@ -2,10 +2,18 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+use work.genram_pkg.all;
+
 
 entity bemicro_adc is
   port
   (
+  
+  
+    dbg_o : out std_logic;
+    
+    
+    
     clk_50meg_i : in  std_logic;
     btn_n_i     : in  std_logic;
     led_n_o     : out std_logic_vector(7 downto 0)
@@ -15,8 +23,11 @@ end entity bemicro_adc;
   
 architecture struct of bemicro_adc is
 
+  --===============================================================================================
+  -- Constant declarations
+  --===============================================================================================
   constant c_ram_width : natural := 16;
-  constant c_ram_depth : natural := 128;
+  constant c_ram_depth : natural := 1024;
   
   --===============================================================================================
   -- Component declarations
@@ -67,7 +78,7 @@ architecture struct of bemicro_adc is
   component adc_ctrl is
   port
   (
-    clk_i               : in std_logic;
+    clk_i               : in  std_logic;
     
     rst_a_i             : in  std_logic;
     
@@ -79,32 +90,38 @@ architecture struct of bemicro_adc is
   );
   end component adc_ctrl;
 
---  -- RAM control
---  component ram_ctrl is
---    generic
---    (
---      g_adc_nr_bits : natural := 12;
---      
---      g_ram_width   : natural := 32;
---      g_ram_depth   : natural := 1024
---    );
---    port
---    (
---      clk_i             : in  std_logic;
---  
---      adc_data_valid_i  : in  std_logic;
---      adc_channel_i     : in  std_logic_vector(4 downto 0);
---      adc_result_i      : in  std_logic_vector(g_adc_nr_bits-1 downto 0);
---  
---      ram_addr_o        : out std_logic_vector(log2(g_ram_depth)-1 downto 0);
---  
---      ram_wr_o          : out std_logic;
---      ram_data_o        : out std_logic_vector(g_ram_width-1 downto 0);
---  
---      ram_rd_o          : out std_logic;
---      ram_data_i        : in  std_logic_vector(g_ram_width-1 downto 0)
---    );
---  end component ram_ctrl;
+  -- RAM control
+  component ram_ctrl is
+    generic
+    (
+      g_adc_nr_bits : natural := 12;
+      
+      g_ram_width   : natural := 32;
+      g_ram_depth   : natural := 1024
+    );
+    port
+    (
+    
+    dbg_o : out std_logic;
+    
+    
+    
+      clk_i               : in  std_logic;
+
+      rst_n_a_i           : in  std_logic;
+
+      adc_result_valid_i  : in  std_logic;
+      adc_channel_i       : in  std_logic_vector(4 downto 0);
+      adc_result_i        : in  std_logic_vector(g_adc_nr_bits-1 downto 0);
+
+      ram_addr_o          : out std_logic_vector(f_log2_size(g_ram_depth)-1 downto 0);
+
+      ram_we_o            : out std_logic;
+      ram_data_o          : out std_logic_vector(g_ram_width-1 downto 0);
+
+      ram_data_i          : in  std_logic_vector(g_ram_width-1 downto 0)
+    );
+  end component ram_ctrl;
 
   component led_pwm is
     port
@@ -143,8 +160,10 @@ architecture struct of bemicro_adc is
   signal adc_resp_channel       : std_logic_vector( 4 downto 0);
   signal adc_resp_data          : std_logic_vector(11 downto 0);
   
---  signal ram_addr : std_logic_vector(log2(c_ram_depth)-1 downto 0);
---  signal ram_data : std_logic_vector(c_ram_width-1 downto 0);
+  signal ram_addr               : std_logic_vector(f_log2_size(c_ram_depth)-1 downto 0);
+  signal ram_data_in            : std_logic_vector(c_ram_width-1 downto 0);
+  signal ram_data_out           : std_logic_vector(c_ram_width-1 downto 0);
+  signal ram_We                 : std_logic;
   
   signal led                    : std_logic_vector(7 downto 0);
   signal btn_debounce_count     : unsigned(23 downto 0);
@@ -154,6 +173,11 @@ architecture struct of bemicro_adc is
 
   signal stim                   : unsigned(11 downto 0);
   signal d                      : unsigned(16 downto 0);
+  attribute keep : boolean;
+  attribute keep of ram_data_out : signal is true;
+  attribute keep of clk_100meg : signal is true;
+  signal tmp : unsigned(27 downto 0);
+  signal ledt : unsigned(7 downto 0);
   
 begin
 
@@ -258,34 +282,62 @@ begin
       led_o               => led
     );
 
---  led <= x"f0" when chan_display_sel = '1' else
---         x"0f";
-  
+--  procesS(clk_100meg)
+--  begin
+--    if rising_edge(clk_100meg) then
+--      if (adc_resp_valid = '1') then
+--        tmp <= tmp+1;
+--        if (tmp = 999_999) then
+--          tmp <= (others => '0');
+--          ledt <= ledt + 1;
+--        end if;
+--      end if;
+--    end if;
+--  end process;
+--  led <= std_logic_vector(ledt);
+
   led_n_o <= not led;
 
---  cmp_ram_ctrl : ram_ctrl
---    generic map
---    (
---      g_adc_nr_bits => 12,
---
---      g_ram_width   => c_ram_width;
---      g_ram_depth   => c_ram_depth;
---    )
---    port map
---    (
---      clk_i             => clk_50meg_i,
---
---      adc_data_valid_i  => adc_resp_valid,
---      adc_channel_i     => adc_resp_channel,
---      adc_result_i      => adc_resp_data,
---
---      ram_addr_o        => ram_addr,
---
---      ram_wr_o          => ram_wr_en,
---      ram_data_o        => ram_data,
---
---      ram_rd_o          => open,
---      ram_data_i        => (others => '0'),
---    );
+  cmp_ram_ctrl : ram_ctrl
+    generic map
+    (
+      g_adc_nr_bits => 12,
+
+      g_ram_width   => c_ram_width,
+      g_ram_depth   => c_ram_depth
+    )
+    port map
+    (
+      clk_i               => clk_100meg,
+        
+      rst_n_a_i           => '1',
+
+      adc_result_valid_i  => adc_resp_valid,
+      adc_channel_i       => adc_resp_channel,
+      adc_result_i        => adc_resp_data,
+
+      ram_addr_o          => ram_addr,
+
+      ram_we_o            => ram_we,
+      ram_data_o          => ram_data_in,
+
+      dbg_o => dbg_o, 
+      ram_data_i          => ram_data_out
+    );
+
+  cmp_ram : generic_spram
+    generic map (
+      g_data_width               => c_ram_width,
+      g_size                     => c_ram_depth
+    )
+    port map (
+      rst_n_i   => '1',
+      clk_i     => clk_100meg,
+      we_i      => ram_we,
+      a_i       => ram_addr,
+      d_i       => ram_data_in,
+      q_o       => ram_data_out
+    );
+
 
 end architecture struct;
