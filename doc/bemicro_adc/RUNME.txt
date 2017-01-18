@@ -1,0 +1,45 @@
+ 1. Open the .stp file from SignalTap
+
+ 2. Program a signal generator to generate a waveform
+
+ 3. Program device
+
+ 4. Device will start operation
+
+ 5. Run simulation
+
+ 6. Trigger arrives after ~10 seconds after device programming
+
+ 7. Once trigger arrives, do File > Export in SignalTap
+
+ 8. Export to .csv, set time to 1us (each sample in memory is 1us apart)
+
+ 9. Open the .csv in a text editor
+
+10. Remove lines up to sample number 130
+
+11. Remove columns after the second (last one should contain hex numbers)
+
+12. Change the hex number columns to something like:
+
+="03E3" (forces Excel to interpret cell as text)
+
+13. Add the following text at the end of all the lines in the .csv file:
+
+,,"=indirect(address(row(),column()-3))-130/10","=hex2dec(indirect(address(row(),column()-3)))"
+
+14. Save the .csv and open it in Excel
+
+15. Check that all columns are properly converted
+
+16. If not, make changes as needed in text editor and reopen in Excel
+
+17. Save file as .xlsx (pay attention not to overwrite .csv)
+
+18. In the .xlsx file, create a line graph of the data, using the following series:
+
+X axis: ='<sheet_name>'!$d$1:$d$896
+Y axis: ='<sheet_name>'!$e$1:$e$896
+
+19. Enjoy your graph :)
+
