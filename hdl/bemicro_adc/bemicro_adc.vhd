@@ -2,10 +2,15 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+use work.gencores_pkg.all;
 use work.genram_pkg.all;
 
 
 entity bemicro_adc is
+  generic
+  (
+    g_nr_buttons : natural := 2
+  );
   port
   (
   
@@ -15,13 +20,18 @@ entity bemicro_adc is
     
     
     clk_50meg_i : in  std_logic;
-    btn_n_i     : in  std_logic;
+    btn_n_i     : in  std_logic_vector(g_nr_buttons-1 downto 0);
     led_n_o     : out std_logic_vector(7 downto 0)
   );
 end entity bemicro_adc;
   
   
 architecture struct of bemicro_adc is
+
+  --===============================================================================================
+  -- Type declarations
+  --===============================================================================================
+  type t_btn_debounce_count is array (g_nr_buttons-1 downto 0) of unsigned(23 downto 0);
 
   --===============================================================================================
   -- Constant declarations
@@ -80,7 +90,7 @@ architecture struct of bemicro_adc is
   (
     clk_i               : in  std_logic;
     
-    rst_a_i             : in  std_logic;
+    rst_n_a_i           : in  std_logic;
     
     channel_sel_i       : in  std_logic;
     
@@ -128,7 +138,7 @@ architecture struct of bemicro_adc is
     (
       clk_i               : in  std_logic;
 
-      rst_a_i             : in  std_logic;
+      rst_n_a_i           : in  std_logic;
 
       adc_result_valid_i  : in  std_logic;
       adc_channel_i       : in  std_logic_vector( 4 downto 0);
@@ -146,6 +156,9 @@ architecture struct of bemicro_adc is
   signal clk_cascade            : std_logic;
   signal clk_100meg             : std_logic;
   signal clk_adc                : std_logic;
+  
+  signal rst_n                  : std_logic;
+  signal rst                    : std_logic;
   
   signal cascade_pll_locked     : std_logic;
   signal cascade_pll_not_locked : std_logic;
@@ -166,10 +179,14 @@ architecture struct of bemicro_adc is
   signal ram_We                 : std_logic;
   
   signal led                    : std_logic_vector(7 downto 0);
-  signal btn_debounce_count     : unsigned(23 downto 0);
-  signal btn_n_d0               : std_logic;
-  signal btn                    : std_logic;
-  signal chan_display_sel       : std_logic;
+  signal btn_debounce_count     : t_btn_debounce_count;
+  signal btn_debounce_en        : std_logic_vector(g_nr_buttons-1 downto 0);
+  signal btn_n                  : std_logic_vector(g_nr_buttons-1 downto 0);
+  signal btn_n_d0               : std_logic_vector(g_nr_buttons-1 downto 0);
+  signal btn                    : std_logic_vector(g_nr_buttons-1 downto 0);
+  signal chan_sel_btn           : std_logic;
+  signal chan_sel_btn_d0        : std_logic;
+  signal chan_sel               : std_logic;
 
   signal stim                   : unsigned(11 downto 0);
   signal d                      : unsigned(16 downto 0);
@@ -177,10 +194,48 @@ architecture struct of bemicro_adc is
   attribute keep of ram_data_out : signal is true;
   attribute keep of clk_100meg : signal is true;
   signal tmp : unsigned(27 downto 0);
+  signal tmp2 : unsigned(27 downto 0);
   signal ledt : unsigned(7 downto 0);
+  signal ledt2 : unsigned(7 downto 0);
   
 begin
 
+gen_btn_debounce : for i in g_nr_buttons-1 downto 0 generate
+
+  cmp_btn_sync : gc_sync_ffs
+    port map
+    (
+      clk_i     => clk_100meg,
+      rst_n_i   => '1',
+      data_i    => btn_n_i(i),
+      synced_o  => btn_n(i)
+    );
+  
+  p_btn_debounce : process (clk_100meg) is
+  begin
+    if rising_edge(clk_100meg) then
+      btn_n_d0(i) <= btn_n(i);
+      if ((btn_n(i) xor btn_n_d0(i)) = '1') then
+        btn_debounce_en(i) <= '1';
+      end if;
+      
+      if (btn_debounce_en(i) = '1') then
+        btn_debounce_count(i) <= btn_debounce_count(i) + 1;
+        if (btn_debounce_count(i) = 9_999_999) then
+          btn(i) <= not btn_n(i);
+          btn_debounce_en(i) <= '0';
+        end if;
+      end if;
+    end if;
+  end process;
+  
+end generate gen_btn_debounce;
+  
+  rst           <= btn(0);
+  chan_sel_btn  <= btn(1);
+  
+  rst_n <= not rst;
+  
   cmp_adc_pll : altera_cascade_pll
     port map
     (
@@ -221,14 +276,27 @@ begin
       response_endofpacket   => open
     );
 
+  p_chan_sel : process (clk_100meg, rst_n) is
+  begin
+    if (rst_n = '0') then
+      chan_sel <= '0';
+      chan_sel_btn_d0 <= '0';
+    elsif rising_edge(clk_100meg) then
+      chan_sel_btn_d0 <= chan_sel_btn;
+      if (chan_sel_btn = '1') and (chan_sel_btn_d0 = '0') then
+        chan_sel <= not chan_sel;
+      end if;
+    end if;
+  end process;
+  
   cmp_adc_ctrl : adc_ctrl
     port map
     (
       clk_i               => clk_100meg,
 
-      rst_a_i             => '0',
+      rst_n_a_i           => rst_n,
       
-      channel_sel_i       => chan_display_sel,
+      channel_sel_i       => chan_sel,
     
       cmd_ready_i         => adc_cmd_ready,
       cmd_valid_o         => adc_cmd_valid,
@@ -249,32 +317,14 @@ begin
 --  adc_resp_valid <= '1';
 --  adc_resp_data <= std_logic_vector(stim);
   
-  p_chan_display_sel : process (clk_100meg) is
-  begin
-    if rising_edge(clk_100meg) then
-      btn_n_d0 <= btn_n_i;
-      if (btn_n_i = '0') and (btn_n_d0 = '1') then
-        btn <= not btn_n_i;
-      end if;
-      
-      if (btn = '1') then
-        btn_debounce_count <= btn_debounce_count + 1;
-        if (btn_debounce_count = 9_999_999) then
-          btn <= '0';
-          chan_display_sel <= not chan_display_sel;
-        end if;
-      end if;
-    end if;
-  end process;
-  
   cmp_led_pwm : led_pwm
     port map
     (
       clk_i               => clk_100meg,
 
-      rst_a_i             => '0',
+      rst_n_a_i           => rst_n,
 
-      chan_display_sel_i  => chan_display_sel,
+      chan_display_sel_i  => chan_sel,
       adc_result_valid_i  => adc_resp_valid,
       adc_channel_i       => adc_resp_channel,
       adc_result_i        => adc_resp_data,
@@ -282,21 +332,30 @@ begin
       led_o               => led
     );
 
---  procesS(clk_100meg)
---  begin
---    if rising_edge(clk_100meg) then
---      if (adc_resp_valid = '1') then
---        tmp <= tmp+1;
---        if (tmp = 999_999) then
---          tmp <= (others => '0');
---          ledt <= ledt + 1;
---        end if;
---      end if;
---    end if;
---  end process;
---  led <= std_logic_vector(ledt);
+----  procesS(clk_100meg, rst_n)
+----  begin
+----    if (rst_n = '0') then
+----      tmp <= (others => '0');
+----      ledt <= (others => '0');
+----      ledt2 <= (others => '0');
+----    elsif rising_edge(clk_100meg) then
+----      if (adc_resp_valid = '1') then
+----        tmp <= tmp+1;
+----        if (tmp = 999_999) then
+----          tmp <= (others => '0');
+----          ledt <= ledt + 1;
+----        end if;
+----        tmp2 <= tmp2 + 1;
+----        if (tmp2 = 249_999) then
+----          tmp2 <= (others => '0');
+----          ledt2 <= ledt2 + 1;
+----        end if;
+----      end if;
+----    end if;
+----  end process;
 
-  led_n_o <= not led;
+  led_n_o(6 downto 0) <= not led(6 downto 0);
+  led_n_o(7) <= not chan_sel;
 
   cmp_ram_ctrl : ram_ctrl
     generic map
@@ -310,7 +369,7 @@ begin
     (
       clk_i               => clk_100meg,
         
-      rst_n_a_i           => '1',
+      rst_n_a_i           => rst_n,
 
       adc_result_valid_i  => adc_resp_valid,
       adc_channel_i       => adc_resp_channel,
@@ -331,7 +390,7 @@ begin
       g_size                     => c_ram_depth
     )
     port map (
-      rst_n_i   => '1',
+      rst_n_i   => rst_n,
       clk_i     => clk_100meg,
       we_i      => ram_we,
       a_i       => ram_addr,
