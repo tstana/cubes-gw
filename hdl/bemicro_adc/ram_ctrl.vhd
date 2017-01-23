@@ -86,9 +86,14 @@ begin
   end process p_ram_ctrl;
 
   sample_count <= wr_ptr;
-  process (clk_i) is
+  process (clk_i, rst_n_a_i) is
   begin
-    if rising_edge(clk_i) then
+    if (rst_n_a_i = '0') then
+      delay <= (others => '0');
+      delay_done <= '0';
+      d0 <= '0';
+      write_done <= '0';
+    elsif rising_edge(clk_i) then
       if (delay < 1_000_000_000) then
         delay <= delay + 1;
         delay_done <= '0';
@@ -102,9 +107,13 @@ begin
     end if;
   end process;
 
-  p_tmp_storage : process (clk_i) is
+  p_tmp_storage : process (clk_i, rst_n_a_i) is
   begin
-    if rising_edge(clk_i) then
+    if (rst_n_a_i = '0') then
+      rd_ptr <= (others => '0');
+      tmp_storage <= (others => '0');
+      dbg <= (others => '0');
+    elsif rising_edge(clk_i) then
       if (write_done = '1') then
         rd_ptr <= rd_ptr + 1;
         tmp_storage <= ram_data_i;

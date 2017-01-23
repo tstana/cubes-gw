@@ -8,7 +8,7 @@ entity led_pwm is
   (
     clk_i               : in  std_logic;
 
-    rst_a_i             : in  std_logic;
+    rst_n_a_i           : in  std_logic;
 
     adc_result_valid_i  : in  std_logic;
     adc_channel_i       : in  std_logic_vector( 4 downto 0);
@@ -43,20 +43,20 @@ begin
   selected_chan <= "01001" when chan_display_sel_i = '1' else
                    "00001";
 
-  p_pwm_counter: process (clk_i, rst_a_i) is
+  p_pwm_counter: process (clk_i, rst_n_a_i) is
   begin
-    if (rst_a_i = '1') then
+    if (rst_n_a_i = '0') then
       pwm_counter <= (others => '0');
     elsif rising_edge(clk_i) then
       pwm_counter <= pwm_counter + 1;
     end if;
   end process;
   
-  p_led_control : process (clk_i, rst_a_i) is
+  p_led_control : process (clk_i, rst_n_a_i) is
     type t_diff_array is array (0 to 7) of unsigned(11 downto 0);
     variable adc_result_diff : t_diff_array;
   begin
-    if (rst_a_i = '1') then
+    if (rst_n_a_i = '0') then
       led_o <= (others => '0');
     elsif rising_edge(clk_i) then
       for i in 0 to 7 loop

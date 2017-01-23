@@ -8,7 +8,7 @@ entity adc_ctrl is
   (
     clk_i               : in  std_logic;
     
-    rst_a_i             : in  std_logic;
+    rst_n_a_i           : in  std_logic;
     
     channel_sel_i       : in  std_logic;
     
