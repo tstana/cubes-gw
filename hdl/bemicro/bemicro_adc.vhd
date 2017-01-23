@@ -31,7 +31,6 @@ architecture struct of bemicro_adc is
   --===============================================================================================
   -- Type declarations
   --===============================================================================================
-  type t_btn_debounce_count is array (g_nr_buttons-1 downto 0) of unsigned(23 downto 0);
 
   --===============================================================================================
   -- Constant declarations
@@ -149,6 +148,21 @@ architecture struct of bemicro_adc is
       led_o               : out std_logic_vector( 7 downto 0)
     );
   end component led_pwm;
+  
+  component debouncer is
+    generic
+    (
+      g_nr_buttons      : natural := 4;
+      g_debounce_cycles : natural := 10_000_000
+    );
+    port
+    (
+      clk_i     : in  std_logic;
+
+      btn_n_i   : in  std_logic_vector(g_nr_buttons-1 downto 0);
+      btn_o     : out std_logic_vector(g_nr_buttons-1 downto 0)
+    );
+  end component debouncer;
 
   --===============================================================================================
   -- Signal declarations
@@ -179,10 +193,6 @@ architecture struct of bemicro_adc is
   signal ram_We                 : std_logic;
   
   signal led                    : std_logic_vector(7 downto 0);
-  signal btn_debounce_count     : t_btn_debounce_count;
-  signal btn_debounce_en        : std_logic_vector(g_nr_buttons-1 downto 0);
-  signal btn_n                  : std_logic_vector(g_nr_buttons-1 downto 0);
-  signal btn_n_d0               : std_logic_vector(g_nr_buttons-1 downto 0);
   signal btn                    : std_logic_vector(g_nr_buttons-1 downto 0);
   signal chan_sel_btn           : std_logic;
   signal chan_sel_btn_d0        : std_logic;
@@ -200,36 +210,17 @@ architecture struct of bemicro_adc is
   
 begin
 
-gen_btn_debounce : for i in g_nr_buttons-1 downto 0 generate
-
-  cmp_btn_sync : gc_sync_ffs
+  cmp_btn_debounce : debouncer
+    generic map
+    (
+      g_nr_buttons => g_nr_buttons
+    )
     port map
     (
-      clk_i     => clk_100meg,
-      rst_n_i   => '1',
-      data_i    => btn_n_i(i),
-      synced_o  => btn_n(i)
+      clk_i   => clk_100meg,
+      btn_n_i => btn_n_i,
+      btn_o   => btn
     );
-  
-  p_btn_debounce : process (clk_100meg) is
-  begin
-    if rising_edge(clk_100meg) then
-      btn_n_d0(i) <= btn_n(i);
-      if ((btn_n(i) xor btn_n_d0(i)) = '1') then
-        btn_debounce_en(i) <= '1';
-      end if;
-      
-      if (btn_debounce_en(i) = '1') then
-        btn_debounce_count(i) <= btn_debounce_count(i) + 1;
-        if (btn_debounce_count(i) = 9_999_999) then
-          btn(i) <= not btn_n(i);
-          btn_debounce_en(i) <= '0';
-        end if;
-      end if;
-    end if;
-  end process;
-  
-end generate gen_btn_debounce;
   
   rst           <= btn(0);
   chan_sel_btn  <= btn(1);
