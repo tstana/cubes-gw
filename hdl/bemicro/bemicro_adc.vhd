@@ -213,11 +213,12 @@ begin
   cmp_btn_debounce : debouncer
     generic map
     (
-      g_nr_buttons => g_nr_buttons
+      g_nr_buttons      => g_nr_buttons,
+      g_debounce_cycles => 1_000_000
     )
     port map
     (
-      clk_i   => clk_100meg,
+      clk_i   => clk_50meg_i,
       btn_n_i => btn_n_i,
       btn_o   => btn
     );
@@ -227,10 +228,10 @@ begin
   
   rst_n <= not rst;
   
-  cmp_adc_pll : altera_cascade_pll
+  cmp_cascade_pll : altera_cascade_pll
     port map
     (
-      areset => '0',
+      areset => rst,
       inclk0 => clk_50meg_i,
       c0     => clk_cascade,
       locked => cascade_pll_locked
@@ -323,31 +324,35 @@ begin
       led_o               => led
     );
 
-----  procesS(clk_100meg, rst_n)
-----  begin
-----    if (rst_n = '0') then
-----      tmp <= (others => '0');
-----      ledt <= (others => '0');
-----      ledt2 <= (others => '0');
-----    elsif rising_edge(clk_100meg) then
-----      if (adc_resp_valid = '1') then
-----        tmp <= tmp+1;
-----        if (tmp = 999_999) then
-----          tmp <= (others => '0');
-----          ledt <= ledt + 1;
-----        end if;
-----        tmp2 <= tmp2 + 1;
-----        if (tmp2 = 249_999) then
-----          tmp2 <= (others => '0');
-----          ledt2 <= ledt2 + 1;
-----        end if;
-----      end if;
-----    end if;
-----  end process;
-
   led_n_o(6 downto 0) <= not led(6 downto 0);
   led_n_o(7) <= not chan_sel;
 
+--  process(clk_100meg, rst_n)
+--  begin
+--    if (rst_n = '0') then
+--      tmp <= (others => '0');
+--      ledt <= (others => '0');
+--      ledt2 <= (others => '0');
+--    elsif rising_edge(clk_100meg) then
+--      if (adc_resp_valid = '1') then
+--        tmp <= tmp+1;
+--        if (tmp = 999_999) then
+--          tmp <= (others => '0');
+--          ledt <= ledt + 1;
+--        end if;
+--        tmp2 <= tmp2 + 1;
+--        if (tmp2 = 249_999) then
+--          tmp2 <= (others => '0');
+--          ledt2 <= ledt2 + 1;
+--        end if;
+--      end if;
+--    end if;
+--  end process;
+--  
+--  led_n_o(6 downto 0) <= not std_logic_vector(ledt(6 downto 0)) when chan_sel = '0' else
+--                         not std_logic_vector(ledt2(6 downto 0));
+--  led_n_o(7) <= not chan_sel;
+  
   cmp_ram_ctrl : ram_ctrl
     generic map
     (
