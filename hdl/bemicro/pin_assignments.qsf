@@ -1,0 +1,24 @@
+set_location_assignment PIN_N14 -to clk_50meg_i
+set_location_assignment PIN_AA5 -to led_n_o[7]
+set_location_assignment PIN_AB4 -to led_n_o[6]
+set_location_assignment PIN_T6 -to led_n_o[5]
+set_location_assignment PIN_V4 -to led_n_o[4]
+set_location_assignment PIN_T1 -to led_n_o[3]
+set_location_assignment PIN_R2 -to led_n_o[2]
+set_location_assignment PIN_N1 -to led_n_o[1]
+set_location_assignment PIN_M2 -to led_n_o[0]
+set_location_assignment PIN_M1 -to btn_n_i[0]
+set_location_assignment PIN_R1 -to btn_n_i[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50meg_i
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn_n_i[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn_n_i[1]
+set_location_assignment PIN_AA13 -to dbg_o
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to dbg_o
