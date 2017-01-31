@@ -40,6 +40,7 @@ architecture behav of uart is
   signal baud_x8_div    : unsigned(g_baud_div_bits-4 downto 0);
   signal baud_x8_tick   : std_logic;
   signal baud_sreg      : std_logic_vector(7 downto 0);
+  signal baud_div       : unsigned(2 downto 0);
   signal baud_tick      : std_logic;
   
   signal tmp : unsigned(7 downto 0);
@@ -66,7 +67,7 @@ begin
     );
     
   -- Divide clk_i to baud rate x8
-  p_baud_div : process (clk_i, rst_n_a_i) is
+  p_baud_x8_div : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       baud_x8_count <= to_unsigned(1, g_baud_div_bits-3);
@@ -79,21 +80,24 @@ begin
         baud_x8_tick  <= '1';
       end if;
     end if;
-  end process p_baud_div;
+  end process p_baud_x8_div;
   
-  -- Generate baud rate tick
-  p_baud_sreg : process (clk_i, rst_n_a_i) is
+  -- Divide baud x8 clock
+  p_baud_div : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
-      baud_sreg <= "00000001";
+      baud_div  <= (others => '0');
+      baud_tick <= '0';
     elsif rising_edge(clk_i) then
+      baud_tick <= '0';
       if (baud_x8_tick = '1') then
-        baud_sreg <= baud_sreg(0) & baud_sreg(7 downto 1);
+        baud_div <= baud_div - 1;
+        if (baud_div = (baud_div'range => '0')) then
+          baud_tick <= '1';
+        end if;
       end if;
     end if;
-  end process p_baud_sreg;
-
-  baud_tick <= baud_sreg(0) and baud_x8_tick;
+  end process p_baud_div;
 
   process (clk_i, rst_n_a_i) is
   begin
