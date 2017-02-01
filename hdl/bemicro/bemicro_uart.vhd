@@ -116,6 +116,8 @@ architecture behav of bemicro_uart is
   
   signal rx_data        : std_logic_vector(7 downto 0);
   signal rx_ready       : std_logic;
+  signal rx_ready_d0    : std_logic;
+  signal rx_ready_p     : std_logic;
   
 begin
 
@@ -194,8 +196,8 @@ begin
       -- Ports to other logic
       baud_div_i    => c_baud_div,
 
-      tx_data_i     => std_logic_vector(tx_data),
-      tx_start_p_i  => tx_start,
+      tx_data_i     => rx_data, -- std_logic_vector(tx_data),
+      tx_start_p_i  => rx_ready_p,
       tx_ready_o    => tx_ready,
 
       rx_ready_o    => rx_ready,
@@ -203,6 +205,17 @@ begin
       
       frame_err_o   => open
     );
+
+  p_rx_ready_pulse : process (clk_100meg, rst_n) is
+  begin
+    if rst_n = '0' then
+      rx_ready_d0 <= '0';
+      rx_ready_p  <= '0';
+    elsif rising_edge(clk_100meg) then
+      rx_ready_d0 <= rx_ready;
+      rx_ready_p <= rx_ready and (not rx_ready_d0);
+    end if;
+  end process;
 
   led_n_o <= not rx_data;
 
