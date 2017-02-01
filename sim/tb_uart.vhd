@@ -85,6 +85,9 @@ architecture behav of tb_uart is
   
   signal rx_sreg        : std_logic_vector(7 downto 0) := (others => '0');
   signal rx_count       : unsigned(2 downto 0) := (others => '0');
+  signal rx_data        : std_logic_vector(7 downto 0);
+  signal rx_ready       : std_logic;
+  signal rx_ready_d0    : std_logic;
   
   signal baud_x8_count  : unsigned(g_baud_div_bits-4 downto 0);
   signal baud_x8_div    : unsigned(g_baud_div_bits-4 downto 0);
@@ -162,7 +165,7 @@ begin
       rst_n_a_i     => rst_n,
 
       -- Ports to external world
-      rxd_i         => '0',
+      rxd_i         => txd,
       txd_o         => txd,
 
       -- Ports to other logic
@@ -171,8 +174,8 @@ begin
       tx_data_i     => std_logic_vector(tx_data_d0),
       tx_ready_o    => tx_ready,
 
-      rx_data_o     => open,
-      rx_ready_o    => open,
+      rx_data_o     => rx_data,
+      rx_ready_o    => rx_ready,
 
       frame_err_o   => open
     );

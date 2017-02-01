@@ -46,6 +46,13 @@ architecture behav of uart is
     TX_STOP
   );
 
+  type t_state_rx is (
+    RX_IDLE,
+    RX_START,
+    RX_DATA,
+    RX_STOP
+  );
+
   --===============================================================================================
   -- Signal declarations
   --===============================================================================================
@@ -60,9 +67,13 @@ architecture behav of uart is
   signal tx_sreg            : std_logic_vector(7 downto 0);
   signal tx_data_count      : unsigned(2 downto 0);
   
+  signal state_rx           : t_state_rx;
   signal rxd                : std_logic;
   signal rxd_d0             : std_logic;
   signal rx_baud_en         : std_logic;
+  signal rx_sreg            : std_logic_vector(7 downto 0);
+  signal rx_data_count      : unsigned(2 downto 0);
+  signal frame_err          : std_logic;
 
 begin
   
@@ -102,6 +113,7 @@ begin
   --===========================================================================
   -- TX
   --===========================================================================
+  -- FSM
   p_tx : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
@@ -172,7 +184,83 @@ begin
       data_i    => rxd_i,
       synced_o  => rxd
     );
-    
-  rx_baud_en <= '0';
+
+  -- FSM
+  p_rx : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      rxd_d0        <= '0';
+      state_rx      <= RX_IDLE;
+      rx_sreg       <= (others => '0');
+      rx_data_count <= (others => '0');
+      rx_baud_en    <= '0';
+      rx_ready_o    <= '0';
+      frame_err     <= '0';
+    elsif rising_edge(clk_i) then
+      rxd_d0 <= rxd;
+
+      case state_rx is
+
+        when RX_IDLE =>
+          rx_data_count <= (others => '0');
+          rx_baud_en    <= '0';
+          rx_ready_o    <= '1';
+          if (rxd = '0') and (rxd_d0 = '1') then
+            rx_baud_en  <= '1';
+            rx_ready_o  <= '0';
+            state_rx    <= RX_START;
+          end if;
+
+          when RX_START =>
+            if (baud_halfbit_tick = '1') then
+              if (rxd = '1') then
+                frame_err <= '1';
+              end if;
+            end if;
+
+            if (baud_tick = '1') then
+              if (frame_err = '0') then
+                state_rx <= RX_DATA;
+              else
+                state_rx <= RX_IDLE;
+              end if;
+            end if;
+
+          when RX_DATA =>
+            if (baud_halfbit_tick = '1') then
+              rx_sreg <= rxd & rx_sreg(7 downto 1);
+            end if;
+
+            if (baud_tick = '1') then
+              rx_data_count <= rx_data_count + 1;
+              if (rx_data_count = (rx_data_count'range => '1')) then
+                state_rx <= RX_STOP;
+              end if;
+            end if;
+
+          when RX_STOP =>
+            if (baud_halfbit_tick = '1') then
+              if (rxd = '0') then
+                frame_err <= '1';
+              end if;
+            end if;
+
+            if (baud_tick = '1') then
+              state_rx <= RX_IDLE;
+            end if;
+
+        when others =>
+          state_rx      <= RX_IDLE;
+          rx_data_count <= (others => '0');
+          rx_baud_en    <= '0';
+
+      end case;
+
+    end if;
+  end process p_rx;
+  
+  -- Assign RX fabric-side outputs
+  rx_data_o   <= rx_sreg;
+  frame_err_o <= frame_err;
 
 end architecture behav;
