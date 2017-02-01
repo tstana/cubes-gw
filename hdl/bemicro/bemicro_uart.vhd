@@ -17,6 +17,7 @@ entity bemicro_uart is
 
     led_n_o     : out std_logic_vector(7 downto 0);
 
+    rxd_i       : in  std_logic;
     txd_o       : out std_logic
   );
 end entity bemicro_uart;
@@ -110,10 +111,11 @@ architecture behav of bemicro_uart is
 
   signal tx_start       : std_logic;
   signal tx_data        : unsigned(7 downto 0) := x"30";
-  signal tx_data_d0     : unsigned(7 downto 0) := x"30";
   signal tx_ready       : std_logic;
   signal start_delay    : unsigned(26 downto 0);
   
+  signal rx_data        : std_logic_vector(7 downto 0);
+  signal rx_ready       : std_logic;
   
 begin
 
@@ -145,22 +147,6 @@ begin
       main_pll_locked_o => open
     );
 
-  p_led_div : process (clk_adc, rst_n) is
-  begin
-    if (rst_n ='0') then
-      led_div <= (others => '0');
-      led     <= (others => '0');
-    elsif rising_edge(clk_adc) then
-      led_div <= led_div + 1;
-      if (led_div = 999_999) then
-        led_div <= (others => '0');
-        led     <= led + 1;
-      end if;
-    end if;
-  end process p_led_div;
-  
-  led_n_o <= not std_logic_vector(led);
-
   --===============================================================================================
   -- Feed TX data
   --===============================================================================================
@@ -170,10 +156,8 @@ begin
       tx_start    <= '0';
       start_delay <= (others => '0');
       tx_data     <= x"30";
-      tx_data_d0  <= x"30";
     elsif rising_edge(clk_100meg) then
       tx_start    <= '0';
-      tx_data_d0  <= tx_data;
       if (tx_ready = '1') then
         start_delay <= start_delay + 1;
         if (start_delay = 99_999_999) then
@@ -204,7 +188,7 @@ begin
       rst_n_a_i     => rst_n,
 
       -- Ports to external world
-      rxd_i         => '0',
+      rxd_i         => rxd_i,
       txd_o         => txd_o,
 
       -- Ports to other logic
@@ -214,10 +198,12 @@ begin
       tx_start_p_i  => tx_start,
       tx_ready_o    => tx_ready,
 
-      rx_ready_o    => open,
-      rx_data_o     => open,
+      rx_ready_o    => rx_ready,
+      rx_data_o     => rx_data,
       
       frame_err_o   => open
     );
+
+  led_n_o <= not rx_data;
 
 end architecture behav;
