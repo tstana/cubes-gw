@@ -9,8 +9,8 @@ set_location_assignment PIN_N1 -to led_n_o[1]
 set_location_assignment PIN_M2 -to led_n_o[0]
 set_location_assignment PIN_M1 -to btn_n_i[0]
 set_location_assignment PIN_R1 -to btn_n_i[1]
-set_location_assignment PIN_D18 -to txd_o
-set_location_assignment PIN_D19 -to rxd_i
+set_location_assignment PIN_D19 -to txd_o
+set_location_assignment PIN_D18 -to rxd_i
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50meg_i
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[6]
