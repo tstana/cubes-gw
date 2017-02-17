@@ -12,6 +12,13 @@ entity uart is
   );
   port
   (
+    stx : out std_logic_vector(1 downto 0);
+    srx : out std_logic_vector(1 downto 0);
+    dbg : out std_logic;
+  
+  
+  
+  
     -- Clock, reset
     clk_i         : in  std_logic;
     rst_n_a_i     : in  std_logic;
@@ -74,6 +81,11 @@ architecture behav of uart is
   signal rx_sreg            : std_logic_vector(7 downto 0);
   signal rx_data_count      : unsigned(2 downto 0);
   signal frame_err          : std_logic;
+  
+  signal c  : natural range 0 to 255;
+  
+  signal baud_tick_dly      : std_logic;
+  signal baud_halftick_dly      : std_logic;
 
 begin
   
@@ -109,6 +121,41 @@ begin
       end if;
     end if;
   end process p_baud_div;
+  
+  
+  p_dly : process (clk_i, rst_n_a_i) is
+  begin
+    if rst_n_a_i = '0' then
+      c <= 0;
+      baud_tick_dly <= '0';
+      baud_halftick_dly <= '0';
+    elsif rising_edge(clk_i) then
+      if (baud_tick_dly = '0') then
+        if (baud_tick = '1') then
+          baud_tick_dly <= '1';
+        end if;
+      else
+        c <= c+1;
+        if (c = 255) then
+          c<= 0;
+          baud_tick_dly <= '0';
+        end if;
+      end if;
+      if (baud_halftick_dly = '0') then
+        if (baud_halfbit_tick = '1') then
+          baud_halftick_dly <= '1';
+        end if;
+      else
+        c <= c+1;
+        if (c = 255) then
+          c<= 0;
+          baud_halftick_dly <= '0';
+        end if;
+      end if;
+    end if;
+  end process;
+  
+  dbg <= baud_tick_dly or baud_halftick_dly;
 
   --===========================================================================
   -- TX
@@ -128,6 +175,11 @@ begin
       case state_tx is
 
         when TX_IDLE =>
+        
+        
+        stx <= "00";
+        
+        
           txd_o         <= '1';
           tx_ready_o    <= '1';
           tx_data_count <= (others => '0');
@@ -141,11 +193,17 @@ begin
           end if;
           
         when TX_START =>
-          if (baud_tick = '1') then
+        stx <= "01";
+
+
+        if (baud_tick = '1') then
             state_tx  <= TX_DATA;
           end if;
           
         when TX_DATA =>
+        
+        
+        stx <= "10";
           txd_o <= tx_sreg(0);
           if (baud_tick = '1') then
             tx_sreg       <= '0' & tx_sreg(7 downto 1);
@@ -157,6 +215,9 @@ begin
           end if;
           
         when TX_STOP =>
+        
+        
+        stx <= "11";
           if (baud_tick = '1') then
             state_tx  <= TX_IDLE;
           end if;
@@ -202,16 +263,25 @@ begin
       case state_rx is
 
         when RX_IDLE =>
+        srx <= "00";
+        
+        
+        
+        
           rx_data_count <= (others => '0');
           rx_baud_en    <= '0';
           rx_ready_o    <= '1';
           if (rxd = '0') and (rxd_d0 = '1') then
             rx_baud_en  <= '1';
             rx_ready_o  <= '0';
+            frame_err   <= '0';
             state_rx    <= RX_START;
           end if;
 
           when RX_START =>
+          
+          
+          srx <= "01";
             if (baud_halfbit_tick = '1') then
               if (rxd = '1') then
                 frame_err <= '1';
@@ -227,6 +297,9 @@ begin
             end if;
 
           when RX_DATA =>
+          
+          
+          srx <= "10";
             if (baud_halfbit_tick = '1') then
               rx_sreg <= rxd & rx_sreg(7 downto 1);
             end if;
@@ -239,6 +312,9 @@ begin
             end if;
 
           when RX_STOP =>
+          
+          
+          srx <= "11";
             if (baud_halfbit_tick = '1') then
               if (rxd = '0') then
                 frame_err <= '1';

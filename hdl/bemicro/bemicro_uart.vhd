@@ -12,6 +12,10 @@ entity bemicro_uart is
   );
   port
   (
+  
+  
+  dbg_o : out std_logic_vector(1 downto 0);
+  
     clk_50meg_i : in  std_logic;
     btn_n_i     : in  std_logic_vector(g_nr_buttons-1 downto 0);
 
@@ -57,6 +61,14 @@ architecture behav of bemicro_uart is
     );
     port
     (
+    
+    
+    
+    stx: out std_logic_vector(1 downto 0);
+    srx : out std_logic_vector(1 downto 0);
+    dbg:out std_logic;
+    
+    
       -- Clock, reset
       clk_i         : in  std_logic;
       rst_n_a_i     : in  std_logic;
@@ -119,6 +131,16 @@ architecture behav of bemicro_uart is
   signal rx_ready_d0    : std_logic;
   signal rx_ready_p     : std_logic;
   
+  signal frame_err      : std_logic;
+  
+  signal div        : natural range 0 to 109;
+  signal clk_debug  : std_logic;
+  signal c : natural range 0 to 461000;
+  signal blink      : std_logic;
+
+  signal srx, stx : std_logic_vector(1 downto 0);
+  signal dbg : std_logic;
+  
 begin
 
   cmp_btn_debounce : debouncer
@@ -149,35 +171,6 @@ begin
       main_pll_locked_o => open
     );
 
-  --===============================================================================================
-  -- Feed TX data
-  --===============================================================================================
-  p_stim : process (clk_100meg, rst_n) is
-  begin
-    if (rst_n = '0') then
-      tx_start    <= '0';
-      start_delay <= (others => '0');
-      tx_data     <= x"30";
-    elsif rising_edge(clk_100meg) then
-      tx_start    <= '0';
-      if (tx_ready = '1') then
-        start_delay <= start_delay + 1;
-        if (start_delay = 99_999_999) then
-          start_delay <= (others => '0');
-          tx_data  <= tx_data + 1;
-          tx_start <= '1';
-          if (tx_data = x"39") then
-            tx_data <= x"0d";
-          elsif (tx_data = x"0d") then
-            tx_data <= x"0a";
-          elsif (tx_data = x"0a") then
-            tx_data <= x"30";
-          end if;
-        end if;
-      end if;
-    end if;
-  end process p_stim;
-
   cmp_uart : uart
     generic map
     (
@@ -185,6 +178,12 @@ begin
     )
     port map
     (
+    
+    
+    stx => stx,
+    srx => srx,
+    dbg => dbg,
+    
       -- Clock, reset
       clk_i         => clk_100meg,
       rst_n_a_i     => rst_n,
@@ -196,16 +195,20 @@ begin
       -- Ports to other logic
       baud_div_i    => c_baud_div,
 
-      tx_data_i     => rx_data, -- std_logic_vector(tx_data),
-      tx_start_p_i  => rx_ready_p,
+      tx_data_i     => rx_data,
+      tx_start_p_i  => tx_start,
       tx_ready_o    => tx_ready,
 
       rx_ready_o    => rx_ready,
       rx_data_o     => rx_data,
       
-      frame_err_o   => open
+      frame_err_o   => frame_err
     );
 
+    dbg_o(0) <= '1' when stx = "111" and srx = "111" else '0';
+    dbg_o(1) <= dbg;
+    
+    
   p_rx_ready_pulse : process (clk_100meg, rst_n) is
   begin
     if rst_n = '0' then
@@ -216,7 +219,36 @@ begin
       rx_ready_p <= rx_ready and (not rx_ready_d0);
     end if;
   end process;
+  
+  
+  process (clk_100meg, rst_n) is
+  begin
+    if rst_n = '0' then
+      div <= 0;
+      clk_debug <= '0';
+    elsif rising_edge(clk_100meg) then
+      div <= div + 1;
+      if (div = 109) then
+        div <= 0;
+        clk_debug <= not clk_debug;
+      end if;
+    end if;
+  end process;
+  
+  process (clk_debug) is
+  begin
+  if rising_edge(clk_debug) then
+  c <= c+1;
+  if (c=460999) then
+  c <= 0;
+  blink <= not blink;
+  end if;
+  end if;
+  end process;
+  
+  tx_start <= rx_ready_p and (not frame_err);
 
-  led_n_o <= not rx_data;
+  led_n_o(7) <= blink;
+  led_n_o(6 downto 0) <= not rx_data(6 downto 0);
 
 end architecture behav;
