@@ -196,7 +196,7 @@ begin
       baud_div_i    => c_baud_div,
 
       tx_data_i     => rx_data,
-      tx_start_p_i  => tx_start,
+      tx_start_p_i  => rx_ready_p,
       tx_ready_o    => tx_ready,
 
       rx_ready_o    => rx_ready,
@@ -246,8 +246,6 @@ begin
   end if;
   end process;
   
-  tx_start <= rx_ready_p and (not frame_err);
-
   led_n_o(7) <= blink;
   led_n_o(6 downto 0) <= not rx_data(6 downto 0);
 
