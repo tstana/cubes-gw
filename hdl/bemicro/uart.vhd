@@ -70,20 +70,25 @@ architecture behav of uart is
   signal baud_halfbit_tick  : std_logic;
   
   signal state_tx           : t_state_tx;
+  signal txd                : std_logic;
   signal tx_baud_en         : std_logic;
   signal tx_sreg            : std_logic_vector(7 downto 0);
   signal tx_data_count      : unsigned(2 downto 0);
+  signal tx_ready           : std_logic;
   
   signal state_rx           : t_state_rx;
   signal rxd                : std_logic;
   signal rxd_d0             : std_logic;
-  signal rxd_fedge          : std_logic;
-  signal rxd_fedge_rst      : std_logic;
-  signal rxd_fedge_rst_d0   : std_logic;
-  signal rxd_fedge_rst_p    : std_logic;
+  signal rxd_fedge_p        : std_logic;
+  signal rx_sta             : std_logic;
+  signal rx_sta_en          : std_logic;
+  signal rx_sta_rst         : std_logic;
+  signal rx_sta_d0          : std_logic;
+  signal rx_sta_redge_p     : std_logic;
   signal rx_baud_en         : std_logic;
   signal rx_sreg            : std_logic_vector(7 downto 0);
   signal rx_data_count      : unsigned(2 downto 0);
+  signal rx_ready           : std_logic;
   signal frame_err          : std_logic;
   
   signal c  : natural range 0 to 255;
@@ -110,7 +115,12 @@ begin
       baud_tick         <= '0';
       baud_halfbit_tick <= '0';
     elsif rising_edge(clk_i) then
+--      rx_sta_d0 <= rx_sta;
+--      rx_sta_redge_p <= (not rx_sta_d0) and rx_sta;
+    
       baud_div <= (others => '0');
+--      if (rx_sta_redge_p = '1') then
+--        baud_div <= unsigned(baud_div_i);
       if (baud_en = '1') then
         baud_tick <= '0';
         baud_div  <= baud_div + 1;
@@ -169,8 +179,8 @@ begin
   begin
     if (rst_n_a_i = '0') then
       state_tx      <= TX_IDLE;
-      txd_o         <= '1';
-      tx_ready_o    <= '1';
+      txd           <= '1';
+      tx_ready      <= '1';
       tx_baud_en    <= '0';
       tx_sreg       <= (others => '0');
       tx_data_count <= (others => '0');
@@ -184,14 +194,14 @@ begin
         stx <= "00";
         
         
-          txd_o         <= '1';
-          tx_ready_o    <= '1';
+          txd           <= '1';
+          tx_ready      <= '1';
           tx_data_count <= (others => '0');
           tx_baud_en    <= '0';
           if (tx_start_p_i = '1') then
-            tx_ready_o  <= '0';
+            tx_ready    <= '0';
             tx_sreg     <= tx_data_i;
-            txd_o       <= '0';
+            txd         <= '0';
             tx_baud_en  <= '1';
             state_tx    <= TX_START;
           end if;
@@ -208,12 +218,12 @@ begin
         
         
         stx <= "10";
-          txd_o <= tx_sreg(0);
+          txd <= tx_sreg(0);
           if (baud_tick = '1') then
             tx_sreg       <= '0' & tx_sreg(7 downto 1);
             tx_data_count <= tx_data_count + 1;
             if (tx_data_count = ((tx_data_count'range) => '1')) then
-              txd_o    <= '1';
+              txd      <= '1';
               state_tx <= TX_STOP;
             end if;
           end if;
@@ -228,7 +238,7 @@ begin
           
         when others =>
           state_tx      <= TX_IDLE;
-          txd_o         <= '1';
+          txd           <= '1';
           tx_data_count <= (others => '0');
           tx_baud_en    <= '0';
           
@@ -236,6 +246,10 @@ begin
 
     end if;
   end process p_tx;
+  
+  -- Assign TX outputs
+  txd_o      <= txd;
+  tx_ready_o <= tx_ready;
   
   --===========================================================================
   -- RX
@@ -252,42 +266,70 @@ begin
 
   -- RXD pin falling edge detection and falling edge reset
   --
+  
+  
+  --
+  --
+  --
+  --  !!! COMMENT ME !!!
+  --
+  --  FIXME: sta_en not asserted if frame_err
+  --
+  --
+  
+  
+  
   -- The falling edge signal is kept high until the FSM resets it while in its
   -- IDLE state. This is to account for "missed" falling edges due to changes
   -- in bit widths from the sending UART port and the FSM still waiting for the
   -- baud rate divider to finish its counting.
-  p_rxd_fedge : process (clk_i, rst_n_a_i) is
+  
+  
+  
+  
+  p_rx_start_bit : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
-      rxd_d0            <= '0';
-      rxd_fedge         <= '0';
-      rxd_fedge_rst_d0  <= '0';
-      rxd_fedge_rst_p   <= '0';
+      rxd_d0      <= '0';
+      rx_sta      <= '0';
+      rx_sta_en   <= '0';
+      rx_sta_rst  <= '0';
     elsif rising_edge(clk_i) then
-      -- Falling edge detect
       rxd_d0 <= rxd;
-      if (rxd_d0 = '1') and (rxd = '0') then
-        rxd_fedge <= '1';
-      elsif (state_rx = RX_IDLE) then
-        rxd_fedge <= '0';
+      rxd_fedge_p <= rxd_d0 and (not rxd);
+
+      if (rx_sta_en = '1') and (rxd_fedge_p = '1') then
+        rx_sta <= '1';
+      elsif (rx_sta_rst = '1') then
+        rx_sta <= '0';
+      end if;
+
+      if (rx_sta = '1') then
+        rx_sta_en <= '0';
+      elsif (state_rx = RX_IDLE) or (state_rx = RX_STOP) then
+        rx_sta_en <= '1';
+      end if;
+
+      rx_sta_rst <= '0';
+      if (rx_sta = '1') and (rx_ready = '1') then
+        rx_sta_rst <= '1';
       end if;
     end if;
-  end process p_rxd_fedge;
+  end process p_rx_start_bit;
   
   -- FSM
   p_rx : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       state_rx      <= RX_IDLE;
-      rxd_fedge_rst <= '0';
       rx_sreg       <= (others => '0');
       rx_data_count <= (others => '0');
       rx_baud_en    <= '0';
-      rx_ready_o    <= '0';
+      rx_ready      <= '0';
       frame_err     <= '0';
     elsif rising_edge(clk_i) then
 
-    case state_rx is
+      case state_rx is
 
         when RX_IDLE =>
         srx <= "00";
@@ -297,10 +339,10 @@ begin
         
           rx_data_count <= (others => '0');
           rx_baud_en    <= '0';
-          rx_ready_o    <= '1';
-          if (rxd_fedge = '1') then
+          rx_ready      <= '1';
+          if (rx_ready = '1') and (rx_sta = '1') then
             rx_baud_en    <= '1';
-            rx_ready_o    <= '0';
+            rx_ready      <= '0';
             frame_err     <= '0';
             state_rx      <= RX_START;
           end if;
@@ -311,16 +353,12 @@ begin
           srx <= "01";
             if (baud_halfbit_tick = '1') then
               if (rxd = '1') then
-                frame_err <= '1';
+                state_rx <= RX_IDLE;
               end if;
             end if;
 
             if (baud_tick = '1') then
-              if (frame_err = '0') then
-                state_rx <= RX_DATA;
-              else
-                state_rx <= RX_IDLE;
-              end if;
+              state_rx <= RX_DATA;
             end if;
 
           when RX_DATA =>
@@ -364,6 +402,7 @@ begin
   
   -- Assign RX fabric-side outputs
   rx_data_o   <= rx_sreg;
+  rx_ready_o  <= rx_ready;
   frame_err_o <= frame_err;
 
 end architecture behav;

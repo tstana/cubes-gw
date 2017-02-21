@@ -216,7 +216,7 @@ begin
       rx_ready_p  <= '0';
     elsif rising_edge(clk_100meg) then
       rx_ready_d0 <= rx_ready;
-      rx_ready_p <= rx_ready and (not rx_ready_d0);
+      rx_ready_p  <= rx_ready and (not rx_ready_d0);
     end if;
   end process;
   
