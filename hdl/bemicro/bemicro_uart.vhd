@@ -12,10 +12,6 @@ entity bemicro_uart is
   );
   port
   (
-  
-  
-  dbg_o : out std_logic_vector(1 downto 0);
-  
     clk_50meg_i : in  std_logic;
     btn_n_i     : in  std_logic_vector(g_nr_buttons-1 downto 0);
 
@@ -61,14 +57,6 @@ architecture behav of bemicro_uart is
     );
     port
     (
-    
-    
-    
-    stx: out std_logic_vector(1 downto 0);
-    srx : out std_logic_vector(1 downto 0);
-    dbg:out std_logic;
-    
-    
       -- Clock, reset
       clk_i         : in  std_logic;
       rst_n_a_i     : in  std_logic;
@@ -132,15 +120,7 @@ architecture behav of bemicro_uart is
   signal rx_ready_p     : std_logic;
   
   signal frame_err      : std_logic;
-  
-  signal div        : natural range 0 to 109;
-  signal clk_debug  : std_logic;
-  signal c : natural range 0 to 461000;
-  signal blink      : std_logic;
 
-  signal srx, stx : std_logic_vector(1 downto 0);
-  signal dbg : std_logic;
-  
 begin
 
   cmp_btn_debounce : debouncer
@@ -178,12 +158,6 @@ begin
     )
     port map
     (
-    
-    
-    stx => stx,
-    srx => srx,
-    dbg => dbg,
-    
       -- Clock, reset
       clk_i         => clk_100meg,
       rst_n_a_i     => rst_n,
@@ -205,10 +179,6 @@ begin
       frame_err_o   => frame_err
     );
 
-    dbg_o(0) <= '1' when stx = "111" and srx = "111" else '0';
-    dbg_o(1) <= dbg;
-    
-    
   p_rx_ready_pulse : process (clk_100meg, rst_n) is
   begin
     if rst_n = '0' then
@@ -221,32 +191,6 @@ begin
   end process;
   
   
-  process (clk_100meg, rst_n) is
-  begin
-    if rst_n = '0' then
-      div <= 0;
-      clk_debug <= '0';
-    elsif rising_edge(clk_100meg) then
-      div <= div + 1;
-      if (div = 109) then
-        div <= 0;
-        clk_debug <= not clk_debug;
-      end if;
-    end if;
-  end process;
-  
-  process (clk_debug) is
-  begin
-  if rising_edge(clk_debug) then
-  c <= c+1;
-  if (c=460999) then
-  c <= 0;
-  blink <= not blink;
-  end if;
-  end if;
-  end process;
-  
-  led_n_o(7) <= blink;
-  led_n_o(6 downto 0) <= not rx_data(6 downto 0);
+  led_n_o(7 downto 0) <= not rx_data;
 
 end architecture behav;
