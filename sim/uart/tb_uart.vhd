@@ -17,7 +17,7 @@ architecture behav of tb_uart is
   --===============================================================================================
   -- Constant declarations
   --===============================================================================================
-  constant c_clk_per : time := 10ns;
+  constant c_clk_per : time := 10 ns;
   constant c_baud_div_int : natural := 867;
   constant c_baud_div     : std_logic_vector := 
                   std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
@@ -185,6 +185,7 @@ begin
   --===============================================================================================
   p_mon : process is
   begin
+    baud_en <= '0';
     wait until tx_start = '1';
     baud_en <= '1';
     wait until baud_div = to_unsigned(4, baud_div'length);
@@ -199,7 +200,6 @@ begin
     wait until baud_div = to_unsigned(4, baud_div'length);
     sample(clk_100meg, mon_sample);
     assert (txd = '1') report "Stop bit wrong!" severity error;
-    baud_en <= '0';
   end process;
   
   --===============================================================================================
@@ -234,7 +234,6 @@ begin
       baud_div  <= (others => '0');
       baud_tick <= '0';
     elsif rising_edge(clk_100meg) then
-      baud_div <= (others => '0');
       if (baud_en = '1') then
         baud_tick <= '0';
         if (baud_x8_tick = '1') then
@@ -243,6 +242,8 @@ begin
             baud_tick <= '1';
           end if;
         end if;
+      else
+        baud_div <= (others => '0');
       end if;
     end if;
   end process p_baud_div;

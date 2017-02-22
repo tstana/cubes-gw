@@ -115,16 +115,12 @@ begin
       baud_tick         <= '0';
       baud_halfbit_tick <= '0';
     elsif rising_edge(clk_i) then
---      rx_sta_d0 <= rx_sta;
---      rx_sta_redge_p <= (not rx_sta_d0) and rx_sta;
-    
       baud_div <= (others => '0');
---      if (rx_sta_redge_p = '1') then
---        baud_div <= unsigned(baud_div_i);
       if (baud_en = '1') then
-        baud_tick <= '0';
         baud_div  <= baud_div + 1;
-        if (baud_div = unsigned(baud_div_i)) then
+        baud_tick <= '0';
+        if (baud_div = unsigned(baud_div_i)) or
+              ((rx_sta = '1') and (state_rx = RX_STOP)) then
           baud_div  <= (others => '0');
           baud_tick <= '1';
         end if;
@@ -137,39 +133,39 @@ begin
     end if;
   end process p_baud_div;
   
-  p_dly : process (clk_i, rst_n_a_i) is
-  begin
-    if rst_n_a_i = '0' then
-      c <= 0;
-      baud_tick_dly <= '0';
-      baud_halftick_dly <= '0';
-    elsif rising_edge(clk_i) then
-      if (baud_tick_dly = '0') then
-        if (baud_tick = '1') then
-          baud_tick_dly <= '1';
-        end if;
-      else
-        c <= c+1;
-        if (c = 255) then
-          c<= 0;
-          baud_tick_dly <= '0';
-        end if;
-      end if;
-      if (baud_halftick_dly = '0') then
-        if (baud_halfbit_tick = '1') then
-          baud_halftick_dly <= '1';
-        end if;
-      else
-        c <= c+1;
-        if (c = 255) then
-          c<= 0;
-          baud_halftick_dly <= '0';
-        end if;
-      end if;
-    end if;
-  end process;
-  
-  dbg <= baud_tick_dly or baud_halftick_dly;
+--  p_dly : process (clk_i, rst_n_a_i) is
+--  begin
+--    if rst_n_a_i = '0' then
+--      c <= 0;
+--      baud_tick_dly <= '0';
+--      baud_halftick_dly <= '0';
+--    elsif rising_edge(clk_i) then
+--      if (baud_tick_dly = '0') then
+--        if (baud_tick = '1') then
+--          baud_tick_dly <= '1';
+--        end if;
+--      else
+--        c <= c+1;
+--        if (c = 255) then
+--          c<= 0;
+--          baud_tick_dly <= '0';
+--        end if;
+--      end if;
+--      if (baud_halftick_dly = '0') then
+--        if (baud_halfbit_tick = '1') then
+--          baud_halftick_dly <= '1';
+--        end if;
+--      else
+--        c <= c+1;
+--        if (c = 255) then
+--          c<= 0;
+--          baud_halftick_dly <= '0';
+--        end if;
+--      end if;
+--    end if;
+--  end process;
+--  
+--  dbg <= baud_tick_dly or baud_halftick_dly;
 
   --===========================================================================
   -- TX
@@ -292,7 +288,7 @@ begin
     if (rst_n_a_i = '0') then
       rxd_d0      <= '0';
       rx_sta      <= '0';
-      rx_sta_en   <= '0';
+      rx_sta_en   <= '1';
       rx_sta_rst  <= '0';
     elsif rising_edge(clk_i) then
       rxd_d0 <= rxd;
@@ -325,7 +321,7 @@ begin
       rx_sreg       <= (others => '0');
       rx_data_count <= (others => '0');
       rx_baud_en    <= '0';
-      rx_ready      <= '0';
+      rx_ready      <= '1';
       frame_err     <= '0';
     elsif rising_edge(clk_i) then
 
@@ -347,7 +343,7 @@ begin
             state_rx      <= RX_START;
           end if;
 
-          when RX_START =>
+        when RX_START =>
           
           
           srx <= "01";
@@ -361,7 +357,7 @@ begin
               state_rx <= RX_DATA;
             end if;
 
-          when RX_DATA =>
+        when RX_DATA =>
           
           
           srx <= "10";
@@ -376,7 +372,7 @@ begin
               end if;
             end if;
 
-          when RX_STOP =>
+        when RX_STOP =>
           
           
           srx <= "11";
@@ -401,8 +397,18 @@ begin
   end process p_rx;
   
   -- Assign RX fabric-side outputs
-  rx_data_o   <= rx_sreg;
   rx_ready_o  <= rx_ready;
   frame_err_o <= frame_err;
+
+  p_rx_data : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      rx_data_o <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (rx_ready = '1') then
+        rx_data_o <= rx_sreg;
+      end if;
+    end if;
+  end process p_rx_data;
 
 end architecture behav;
