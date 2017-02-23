@@ -58,13 +58,6 @@ end entity bemicro_cubes_btm;
 architecture arch of bemicro_cubes_btm is
 
   --============================================================================
-  -- Constant declarations
-  --============================================================================
-  constant c_baud_div_int : natural := 867;
-  constant c_baud_div     : std_logic_vector := 
-      std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
-
-  --============================================================================
   -- Component declarations
   --============================================================================
   -- MAX10 PLLs
