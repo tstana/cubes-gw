@@ -221,7 +221,7 @@ begin
           if (r_done_p = '1') then
             if (rx_data(7 downto 1) = addr_i) then
               addr_match <= '1';
-              i2c_op          <= rx_data(0);
+              i2c_op <= rx_data(0);
               i2c_mimic_state <= CHECK_OP;
             end if;
           end if;

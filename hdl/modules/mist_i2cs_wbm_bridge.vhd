@@ -37,6 +37,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+use work.mist_obc_pkg.all;
+use work.wishbone_pkg.all;
+use work.genram_pkg.all;
+
 
 entity mist_i2cs_wbm_bridge is
   port
@@ -72,17 +76,8 @@ entity mist_i2cs_wbm_bridge is
     wdto_p_o    : out std_logic;
 
     -- Wishbone master signals
-    wbm_stb_o   : out std_logic;
-    wbm_cyc_o   : out std_logic;
-    wbm_sel_o   : out std_logic_vector(3 downto 0);
-    wbm_we_o    : out std_logic;
-    wbm_dat_i   : in  std_logic_vector(31 downto 0);
-    wbm_dat_o   : out std_logic_vector(31 downto 0);
-    wbm_adr_o   : out std_logic_vector(31 downto 0);
-    wbm_ack_i   : in  std_logic;
-    wbm_rty_i   : in  std_logic;
-    wbm_err_i   : in  std_logic;
-    
+    wbm_i       : in  t_wishbone_master_in;
+    wbm_o       : out t_wishbone_master_out;
     
     -- TEMPORARY: UART RX and TX
     rxd_i       : in  std_logic;
@@ -99,7 +94,11 @@ architecture behav of mist_i2cs_wbm_bridge is
   type t_state is (
     IDLE,
     DECODE_MSG_ID,
-    EXEC_CMD
+    GET_DLC,
+--    GET_CRC,
+    WB_PREPARE_DATA,
+    WB_CYCLE,
+    UART_WRAPPER_STOP
   );
 
   --============================================================================
@@ -145,16 +144,34 @@ architecture behav of mist_i2cs_wbm_bridge is
   --============================================================================
   signal state                  : t_state;
   
+  -- I2C signals
   signal i2c_tx_byte            : std_logic_vector(7 downto 0);
   signal i2c_rx_byte            : std_logic_vector(7 downto 0);
   
-  signal uart_wrapper_stop      : std_logic;
+  signal uart_wrapper_stop_p    : std_logic;
   
   signal i2c_addr_match_p       : std_logic;
   signal i2c_op                 : std_logic;
-  
+
   signal i2c_r_done_p           : std_logic;
   signal i2c_w_done_p           : std_logic;
+
+  -- Internal Wishbone signals
+  signal wb_dat_out             : std_logic_vector(c_wishbone_data_width-1 downto 0);
+  signal wb_dat_in              : std_logic_vector(c_wishbone_data_width-1 downto 0);
+  signal wb_adr                 : std_logic_vector(c_wishbone_address_width-1 downto 0);
+  signal wb_cyc                 : std_logic;
+  signal wb_stb                 : std_logic;
+  signal wb_we                  : std_logic;
+  signal wb_ack                 : std_logic;
+  signal wb_err                 : std_logic;
+  signal wb_rty                 : std_logic;
+  
+  signal dat_byte_count         : unsigned(f_log2_size(c_wishbone_data_width)-1
+                                              downto 0);
+  
+  -- OBC protocol signals
+  signal data_len               : std_logic_vector(c_obc_dlc_width-1 downto 0);
 
 --==============================================================================
 --  architecture begin
@@ -180,7 +197,7 @@ begin
       rx_data_o       => i2c_rx_byte,
 
       -- I2C stop condition as detected by external module
-      sto_p_i         => uart_wrapper_stop,
+      sto_p_i         => uart_wrapper_stop_p,
 
       -- I2C address input and match pulse output
       addr_i          => i2c_addr_i,
@@ -193,6 +210,84 @@ begin
       r_done_p_o      => i2c_r_done_p,
       w_done_p_o      => i2c_w_done_p
     );
+
+  --============================================================================
+  -- Wishbone master
+  --============================================================================
+  -- Inputs from Wishbone bus
+  wb_ack    <= wbm_i.ack;
+  wb_err    <= wbm_i.err;
+  wb_rty    <= wbm_i.rty;
+  
+  -- Outputs to Wishbone bus
+  wbm_o.dat <= wb_dat_out;
+  wbm_o.adr <= wb_adr;
+  wbm_o.cyc <= wb_cyc;
+  wbm_o.stb <= wb_stb;
+  wbm_o.we  <= wb_we;
+  wbm_o.sel <= (others => '1');
+
+  -- FSM process
+  p_wb_fsm : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      state <= IDLE;
+    elsif rising_edge(clk_i) then
+      
+      case state is
+        
+        when IDLE =>
+          dat_byte_count <= (others => '0');
+          uart_wrapper_stop_p <= '0';
+          if (i2c_addr_match_p = '1') then
+            state <= DECODE_MSG_ID;
+          end if;
+          
+        when DECODE_MSG_ID =>
+          if (i2c_r_done_p = '1') then
+            if (i2c_rx_byte = x"90") then
+              wb_adr <= x"00000004";
+              state <= WB_PREPARE_DATA;
+            else
+              state <= IDLE;
+              -- NACK here !
+            end if;
+          end if;
+          
+        -- when GET_DLC =>
+        
+        -- when GET_CRC =>
+        
+        when WB_PREPARE_DATA =>
+          if (i2c_r_done_p = '1') then
+            dat_byte_count <= dat_byte_count + 1;
+            wb_dat_out <= i2c_rx_byte & wb_dat_out(wb_dat_out'length-1 downto 8);
+            if (dat_byte_count = f_log2_size(c_wishbone_data_width)-1) then
+              state <= WB_CYCLE;
+            end if;
+          end if;
+          
+        when WB_CYCLE =>
+          wb_cyc <= '1';
+          wb_stb <= '1';
+          wb_we  <= not i2c_op;
+          if (wb_ack = '1') then
+            wb_cyc <= '0';
+            wb_stb <= '0';
+            wb_we  <= '0';
+            state  <= IDLE;
+          end if;
+          
+        when UART_WRAPPER_STOP =>
+          uart_wrapper_stop_p <= '1';
+          state <= IDLE;
+        
+        when others =>
+          state <= IDLE;
+          
+      end case;
+    end if;
+  end process p_wb_fsm;
 
 
 end architecture behav;
