@@ -61,6 +61,7 @@ set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/
 set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/common/gencores_pkg.vhd"
 set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/wishbone/wishbone_pkg.vhd"
 set_global_assignment -name VHDL_FILE ../../hdl/pkg/mist_obc_pkg.vhd
+set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/wishbone/wb_crossbar/xwb_crossbar.vhd"
 set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/common/gc_sync_ffs.vhd"
 set_global_assignment -name VHDL_FILE ../../hdl/ip_cores/altera_cascade_pll/altera_cascade_pll.vhd
 set_global_assignment -name QIP_FILE ../../hdl/ip_cores/altera_cascade_pll/altera_cascade_pll.qip

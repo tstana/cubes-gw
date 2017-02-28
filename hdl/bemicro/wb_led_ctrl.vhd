@@ -60,6 +60,7 @@ architecture arch of wb_led_ctrl is
   -- Signal declarations
   --============================================================================
   signal wb_dat       : std_logic_vector(c_wishbone_data_width-1 downto 0);
+  signal wb_dat_out   : std_logic_vector(c_wishbone_data_width-1 downto 0);
   signal wb_adr       : std_logic_vector(c_wishbone_address_width-1 downto 0);
   signal wb_cyc       : std_logic;
   signal wb_stb       : std_logic;  
@@ -83,25 +84,41 @@ begin
   wb_we  <= wbs_i.we;
   
   wbs_o.ack <= wb_ack;
-  wbs_o.dat <= (others => '0');
+  wbs_o.dat <= wb_dat_out;
+  wbs_o.err <= '0';
+  wbs_o.rty <= '0';
+  wbs_o.stall <= '0';
+  wbs_o.int <= '0';
+  
+  led_o <= led;
 
   --============================================================================
   -- Wishbone reg
   --============================================================================
+  wb_dat_out(31 downto 8) <= (others => '0');
+  
   p_wb_reg : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       led <= (others => '0');
       wb_ack <= '0';
+      wb_dat_out(7 downto 0) <= (others => '0');
     elsif rising_edge(clk_i) then
       if (wb_cyc = '1') and (wb_stb = '1') then
         wb_ack <= '1';
-        if (wb_adr(0) = '1') and (wb_we = '1') then
-          led <= wb_dat(7 downto 0);
+        if (wb_we = '1') then
+          if (wb_adr(2) = '1') then
+            led <= wb_dat(7 downto 0);
+          end if;
+        else
+          wb_dat_out(7 downto 0) <= (others => '0');
+          if (wb_adr(2) = '1') then
+            wb_dat_out(7 downto 0) <= led;
+          end if;
         end if;
       end if;
       
-      if (wb_ack <= '1') then
+      if (wb_ack = '1') then
         wb_ack <= '0';
       end if;
     end if;

@@ -94,9 +94,10 @@ architecture behav of mist_i2cs_wbm_bridge is
   type t_state is (
     IDLE,
     DECODE_MSG_ID,
-    GET_DLC,
+--    GET_DLC,
 --    GET_CRC,
-    WB_PREPARE_DATA,
+    RECEIVE_DATA,
+    SEND_DATA,
     WB_CYCLE,
     UART_WRAPPER_STOP
   );
@@ -104,6 +105,7 @@ architecture behav of mist_i2cs_wbm_bridge is
   --============================================================================
   -- Constant declarations
   --============================================================================
+  constant c_max_data_bytes : natural := f_log2_size(c_wishbone_data_width)-1;
 
   --============================================================================
   -- Component declarations
@@ -123,6 +125,8 @@ architecture behav of mist_i2cs_wbm_bridge is
       tx_data_i       : in  std_logic_vector(7 downto 0);
       rx_data_o       : out std_logic_vector(7 downto 0);
 
+      tx_start_p_i    : in  std_logic;
+      
       -- I2C stop condition as detected by external module
       sto_p_i         : in  std_logic;
 
@@ -155,6 +159,9 @@ architecture behav of mist_i2cs_wbm_bridge is
 
   signal i2c_r_done_p           : std_logic;
   signal i2c_w_done_p           : std_logic;
+  
+  -- !!! REMOVE ME !!!
+  signal tx_start_p             : std_logic;
 
   -- Internal Wishbone signals
   signal wb_dat_out             : std_logic_vector(c_wishbone_data_width-1 downto 0);
@@ -166,9 +173,9 @@ architecture behav of mist_i2cs_wbm_bridge is
   signal wb_ack                 : std_logic;
   signal wb_err                 : std_logic;
   signal wb_rty                 : std_logic;
+  signal wb_stall               : std_logic;
   
-  signal dat_byte_count         : unsigned(f_log2_size(c_wishbone_data_width)-1
-                                              downto 0);
+  signal dat_byte_count         : unsigned(f_log2_size(c_max_data_bytes)-1 downto 0);
   
   -- OBC protocol signals
   signal data_len               : std_logic_vector(c_obc_dlc_width-1 downto 0);
@@ -195,6 +202,8 @@ begin
       -- Parallel data I/O to fabric
       tx_data_i       => i2c_tx_byte,
       rx_data_o       => i2c_rx_byte,
+      
+      tx_start_p_i    => tx_start_p,
 
       -- I2C stop condition as detected by external module
       sto_p_i         => uart_wrapper_stop_p,
@@ -210,6 +219,8 @@ begin
       r_done_p_o      => i2c_r_done_p,
       w_done_p_o      => i2c_w_done_p
     );
+
+  i2c_tx_byte <= wb_dat_in(31 downto 24);
 
   --============================================================================
   -- Wishbone master
@@ -232,6 +243,12 @@ begin
   begin
     if (rst_n_a_i = '0') then
       state <= IDLE;
+      wb_cyc <= '0';
+      wb_stb <= '0';
+      wb_we  <= '0';
+      wb_dat_in <= (others => '0');
+      uart_wrapper_stop_p <= '0';
+      tx_start_p <= '0';
     elsif rising_edge(clk_i) then
       
       case state is
@@ -239,6 +256,7 @@ begin
         when IDLE =>
           dat_byte_count <= (others => '0');
           uart_wrapper_stop_p <= '0';
+          tx_start_p <= '0';
           if (i2c_addr_match_p = '1') then
             state <= DECODE_MSG_ID;
           end if;
@@ -246,8 +264,11 @@ begin
         when DECODE_MSG_ID =>
           if (i2c_r_done_p = '1') then
             if (i2c_rx_byte = x"90") then
-              wb_adr <= x"00000004";
-              state <= WB_PREPARE_DATA;
+              wb_adr <= x"00000014";
+              state <= RECEIVE_DATA;
+            elsif (i2c_rx_byte = x"91") then
+              wb_adr <= x"00000014";
+              state <= WB_CYCLE;
             else
               state <= IDLE;
               -- NACK here !
@@ -258,12 +279,23 @@ begin
         
         -- when GET_CRC =>
         
-        when WB_PREPARE_DATA =>
+        when RECEIVE_DATA =>
           if (i2c_r_done_p = '1') then
             dat_byte_count <= dat_byte_count + 1;
-            wb_dat_out <= i2c_rx_byte & wb_dat_out(wb_dat_out'length-1 downto 8);
-            if (dat_byte_count = f_log2_size(c_wishbone_data_width)-1) then
+            wb_dat_out <= wb_dat_out(wb_dat_out'length-1 downto 8) & i2c_rx_byte;
+            if (dat_byte_count = c_max_data_bytes-1) then
               state <= WB_CYCLE;
+            end if;
+          end if;
+          
+        when SEND_DATA =>
+          tx_start_p <= '0';
+          if (i2c_w_done_p = '1') then
+            dat_byte_count <= dat_byte_count + 1;
+            wb_dat_in <= wb_dat_in(23 downto 0) & x"00";
+            tx_start_p <= '1';
+            if (dat_byte_count = c_max_data_bytes-1) then
+              state <= UART_WRAPPER_STOP;
             end if;
           end if;
           
@@ -275,7 +307,13 @@ begin
             wb_cyc <= '0';
             wb_stb <= '0';
             wb_we  <= '0';
-            state  <= IDLE;
+            if (wb_we = '1') then
+              state <= UART_WRAPPER_STOP;
+            else
+              wb_dat_in <= wbm_i.dat;
+              state <= SEND_DATA;
+              tx_start_p <= '1';
+            end if;
           end if;
           
         when UART_WRAPPER_STOP =>

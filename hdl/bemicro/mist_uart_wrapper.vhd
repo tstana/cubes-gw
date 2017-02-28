@@ -55,6 +55,8 @@ entity mist_uart_wrapper is
     tx_data_i       : in  std_logic_vector(7 downto 0);
     rx_data_o       : out std_logic_vector(7 downto 0);
 
+    tx_start_p_i    : in  std_logic;
+    
     -- I2C stop condition as detected by external module
     sto_p_i         : in  std_logic;
 
@@ -79,8 +81,7 @@ architecture behav of mist_uart_wrapper is
   --============================================================================
   type t_i2c_mimic_state is (
     IDLE,
-    CHECK_OP,
-    RX_DATA_RELAY
+    DATA_RELAY
   );
 
   --============================================================================
@@ -167,7 +168,7 @@ begin
       baud_div_i    => c_baud_div,
 
       tx_data_i     => tx_data_i,
-      tx_start_p_i  => '0',
+      tx_start_p_i  => tx_start_p_i,
       tx_ready_o    => tx_ready,
 
       rx_ready_o    => rx_ready,
@@ -222,18 +223,11 @@ begin
             if (rx_data(7 downto 1) = addr_i) then
               addr_match <= '1';
               i2c_op <= rx_data(0);
-              i2c_mimic_state <= CHECK_OP;
+              i2c_mimic_state <= DATA_RELAY;
             end if;
           end if;
           
-        when CHECK_OP =>
-          if (i2c_op = '1') then
-            i2c_mimic_state <= RX_DATA_RELAY;
-          else
-            i2c_mimic_state <= IDLE;
-          end if;
-          
-        when RX_DATA_RELAY =>
+        when DATA_RELAY =>
           if (sto_p_i = '1') then
             i2c_mimic_state <= IDLE;
           end if;

@@ -64,18 +64,41 @@ architecture arch of bemicro_cubes_btm is
   --============================================================================
   -- Constant declarations
   --============================================================================
+  ------------------------------------------------------------------------------
+  -- I2C address
+  ------------------------------------------------------------------------------
   constant c_i2c_address    : std_logic_vector(6 downto 0) := "1110000";
   
+  ------------------------------------------------------------------------------
   -- Wishbone slaves
-  constant c_num_wb_slaves  : natural := 1;
+  ------------------------------------------------------------------------------
+  -- Number of slaves
+  constant c_num_wb_slaves  : natural := 2;
   
-  constant c_led_ctrl_idx   : natural := 0;
+  -- Slave indices
+  constant c_id_regs_idx    : natural := 0;
+  constant c_led_ctrl_idx   : natural := 1;
   
-  constant c_led_ctrl_addr  : t_wishbone_address := x"00000000";
+  -- Slave base addresses
+  constant c_id_regs_addr   : t_wishbone_address := x"00000000";
+  constant c_led_ctrl_addr  : t_wishbone_address := x"00000010";
   
+  -- Slave xwb_crossbar masks
+  constant c_id_regs_mask   : t_wishbone_address := x"ffffffff";
+  constant c_led_ctrl_mask  : t_wishbone_address := x"fffffff0";
+  
+  ------------------------------------------------------------------------------
   -- Wishbone address layout
-  constant c_wb_layout   : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
-    c_led_ctrl_idx => c_led_ctrl_addr
+  ------------------------------------------------------------------------------
+  constant c_wb_layout : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
+    c_id_regs_idx   => c_id_regs_addr,
+    c_led_ctrl_idx  => c_led_ctrl_addr
+  );
+  
+  
+  constant c_wb_address_mask : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
+    c_id_regs_idx   => c_id_regs_mask,
+    c_led_ctrl_idx  => c_led_ctrl_mask
   );
   
   --============================================================================
@@ -179,14 +202,13 @@ architecture arch of bemicro_cubes_btm is
   
   signal btn                    : std_logic_vector(g_nr_buttons-1 downto 0);
 
-  signal led_div                : unsigned(26 downto 0);
-  signal led                    : unsigned( 7 downto 0);
+  signal led                    : std_logic_vector( 7 downto 0);
   
   -- Wishbone signals
-  signal xwb_slave_in           : t_wishbone_slave_in_array;
-  signal xwb_slave_out          : t_wishbone_slave_out_array;
-  signal xwb_masters_in         : t_wishbone_master_in_array;
-  signal xwb_masters_out        : t_wishbone_master_out_array;
+  signal xwb_slave_in           : t_wishbone_slave_in_array(0 to 0);
+  signal xwb_slave_out          : t_wishbone_slave_out_array(0 to 0);
+  signal xwb_masters_in         : t_wishbone_master_in_array(0 to c_num_wb_slaves-1);
+  signal xwb_masters_out        : t_wishbone_master_out_array(0 to c_num_wb_slaves-1);
 
 --==============================================================================
 --  architecture begin
@@ -294,7 +316,10 @@ begin
       master_o        => xwb_masters_out
     );
 
-  
+  xwb_masters_in(0).err <= '0';
+  xwb_masters_in(0).ack <= '0';
+  xwb_masters_in(0).stall <= '0';
+
   --============================================================================
   -- Light some LEDs from Wishbone
   --============================================================================
@@ -304,13 +329,13 @@ begin
       clk_i       => clk_100meg,
       rst_n_a_i   => rst_n,
       
-      wbs_i       => xbar_masters_out(c_wb_led_ctrl_idx),
-      wbs_o       => xbar_masters_in(c_wb_led_ctrl_idx),
+      wbs_i       => xwb_masters_out(c_led_ctrl_idx),
+      wbs_o       => xwb_masters_in(c_led_ctrl_idx),
       
       led_o       => led
     );
 
-  led_n_o <= not std_logic_vector(led);
+  led_n_o <= not led;
 
 end architecture arch;
 --==============================================================================
