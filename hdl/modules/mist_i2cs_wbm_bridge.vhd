@@ -248,17 +248,18 @@ begin
       wb_cyc <= '0';
       wb_stb <= '0';
       wb_we  <= '0';
-      wb_dat_in <= (others => '0');
+      wb_dat_in  <= (others => '0');
       wb_dat_out <= (others => '0');
-      uart_wrapper_stop_p <= '0';
       tx_start_p <= '0';
       bytes_left <= (others => '0');
+      uart_wrapper_stop_p <= '0';
       
     elsif rising_edge(clk_i) then
       
       case state is
         
         when IDLE =>
+          wb_dat_out <= (others => '0');
           uart_wrapper_stop_p <= '0';
           if (i2c_addr_match_p = '1') then
             state <= DECODE_MSG_ID;
