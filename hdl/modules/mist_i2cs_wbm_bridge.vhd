@@ -97,6 +97,7 @@ architecture behav of mist_i2cs_wbm_bridge is
 --    GET_DLC,
 --    GET_CRC,
     RECEIVE_DATA,
+    UART_TX_START,
     SEND_DATA,
     WB_CYCLE,
     UART_WRAPPER_STOP
@@ -259,7 +260,6 @@ begin
         
         when IDLE =>
           uart_wrapper_stop_p <= '0';
-          tx_start_p <= '0';
           if (i2c_addr_match_p = '1') then
             state <= DECODE_MSG_ID;
           end if;
@@ -297,12 +297,18 @@ begin
             end if;
           end if;
           
+        -- TODO: Remove me for I2C
+        when UART_TX_START =>
+          tx_start_p <= '1';
+          state <= SEND_DATA;
+          
         when SEND_DATA =>
           tx_start_p <= '0';
           if (i2c_w_done_p = '1') then
-            tx_start_p <= '1';
             bytes_left <= bytes_left - 1;
             wb_dat_in <= wb_dat_in(23 downto 0) & x"00";
+            -- TODO: Remove me for I2C
+            state <= UART_TX_START;
             if (bytes_left(1 downto 0) = "00") then
               state <= WB_CYCLE;
             end if;
@@ -316,6 +322,7 @@ begin
             wb_cyc <= '0';
             wb_stb <= '0';
             wb_we  <= '0';
+            
             -- If last byte was sent, bytes_left wraps around to 0xf..ff
             -- in RX/TX state; go back to IDLE if so.
             --
@@ -331,10 +338,10 @@ begin
               wb_adr <= wb_adr + 4;
               state <= RECEIVE_DATA;
             else
-              tx_start_p <= '1';
               wb_dat_in <= wbm_i.dat;
               wb_adr <= wb_adr + 4;
-              state <= SEND_DATA;
+              -- TODO: Remove/change me for I2C
+              state <= UART_TX_START;
             end if;
           end if;
           
