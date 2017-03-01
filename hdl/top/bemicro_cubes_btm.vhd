@@ -65,6 +65,16 @@ architecture arch of bemicro_cubes_btm is
   -- Constant declarations
   --============================================================================
   ------------------------------------------------------------------------------
+  -- Gateware version number
+  ------------------------------------------------------------------------------
+  -- Hex-value minor and major version
+  constant c_gw_vers_maj    : std_logic_vector( 7 downto 0) := x"30";
+  constant c_gw_vers_min    : std_logic_vector( 7 downto 0) := x"31";
+  
+  -- Concatenate the two together
+  constant c_gw_version     : std_logic_vector(15 downto 0) := c_gw_vers_maj & c_gw_vers_min;
+  
+  ------------------------------------------------------------------------------
   -- I2C address
   ------------------------------------------------------------------------------
   constant c_i2c_address    : std_logic_vector(6 downto 0) := "1110000";
@@ -84,7 +94,7 @@ architecture arch of bemicro_cubes_btm is
   constant c_led_ctrl_addr  : t_wishbone_address := x"00000010";
   
   -- Slave xwb_crossbar masks
-  constant c_id_regs_mask   : t_wishbone_address := x"ffffffff";
+  constant c_id_regs_mask   : t_wishbone_address := x"fffffff0";
   constant c_led_ctrl_mask  : t_wishbone_address := x"fffffff0";
   
   ------------------------------------------------------------------------------
@@ -177,7 +187,21 @@ architecture arch of bemicro_cubes_btm is
     );
   end component mist_i2cs_wbm_bridge;
 
-  -- Wishbone LED control
+  -- ID registers slave
+  component wb_id_regs is
+    port
+    (
+      clk_i             : in  std_logic;
+      rst_n_a_i         : in  std_logic;
+      
+      id_version_i      : in  std_logic_vector(15 downto 0);
+      
+      wbs_i             : in  t_wishbone_slave_in;
+      wbs_o             : out t_wishbone_slave_out
+    );
+  end component wb_id_regs;
+
+  -- Wishbone LED control slave
   component wb_led_ctrl is
     port
     (
@@ -316,10 +340,19 @@ begin
       master_o        => xwb_masters_out
     );
 
-  xwb_masters_in(0).err <= '0';
-  xwb_masters_in(0).ack <= '0';
-  xwb_masters_in(0).stall <= '0';
-
+  -- ID Registers
+  cmp_wb_id_regs : wb_id_regs
+    port map
+    (
+      clk_i             => clk_100meg,
+      rst_n_a_i         => rst_n,
+      
+      id_version_i      => c_gw_version,
+      
+      wbs_i             => xwb_masters_out(c_id_regs_idx),
+      wbs_o             => xwb_masters_in(c_id_regs_idx)
+    );
+  
   --============================================================================
   -- Light some LEDs from Wishbone
   --============================================================================
@@ -336,6 +369,7 @@ begin
     );
 
   led_n_o <= not led;
+  
 
 end architecture arch;
 --==============================================================================

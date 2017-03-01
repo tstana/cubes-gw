@@ -166,7 +166,7 @@ architecture behav of mist_i2cs_wbm_bridge is
   -- Internal Wishbone signals
   signal wb_dat_out             : std_logic_vector(c_wishbone_data_width-1 downto 0);
   signal wb_dat_in              : std_logic_vector(c_wishbone_data_width-1 downto 0);
-  signal wb_adr                 : std_logic_vector(c_wishbone_address_width-1 downto 0);
+  signal wb_adr                 : unsigned(c_wishbone_address_width-1 downto 0);
   signal wb_cyc                 : std_logic;
   signal wb_stb                 : std_logic;
   signal wb_we                  : std_logic;
@@ -178,7 +178,8 @@ architecture behav of mist_i2cs_wbm_bridge is
   signal dat_byte_count         : unsigned(f_log2_size(c_max_data_bytes)-1 downto 0);
   
   -- OBC protocol signals
-  signal data_len               : std_logic_vector(c_obc_dlc_width-1 downto 0);
+  signal data_len               : std_logic_vector(c_obc_dl_width-1 downto 0);
+  signal bytes_left             : unsigned(c_obc_dl_width-1 downto 0);
 
 --==============================================================================
 --  architecture begin
@@ -232,7 +233,7 @@ begin
   
   -- Outputs to Wishbone bus
   wbm_o.dat <= wb_dat_out;
-  wbm_o.adr <= wb_adr;
+  wbm_o.adr <= std_logic_vector(wb_adr);
   wbm_o.cyc <= wb_cyc;
   wbm_o.stb <= wb_stb;
   wbm_o.we  <= wb_we;
@@ -247,14 +248,16 @@ begin
       wb_stb <= '0';
       wb_we  <= '0';
       wb_dat_in <= (others => '0');
+      wb_dat_out <= (others => '0');
       uart_wrapper_stop_p <= '0';
       tx_start_p <= '0';
+      bytes_left <= (others => '0');
+      
     elsif rising_edge(clk_i) then
       
       case state is
         
         when IDLE =>
-          dat_byte_count <= (others => '0');
           uart_wrapper_stop_p <= '0';
           tx_start_p <= '0';
           if (i2c_addr_match_p = '1') then
@@ -263,14 +266,20 @@ begin
           
         when DECODE_MSG_ID =>
           if (i2c_r_done_p = '1') then
+            bytes_left <= to_unsigned(3, bytes_left'length);
             if (i2c_rx_byte = x"90") then
+              wb_adr <= x"00000000";
+              bytes_left <= to_unsigned(7, bytes_left'length);
+              state <= WB_CYCLE;
+            elsif (i2c_rx_byte = x"91") then
               wb_adr <= x"00000014";
               state <= RECEIVE_DATA;
-            elsif (i2c_rx_byte = x"91") then
+            elsif (i2c_rx_byte = x"92") then
               wb_adr <= x"00000014";
               state <= WB_CYCLE;
             else
-              state <= IDLE;
+              state <= UART_WRAPPER_STOP;
+              -- state <= IDLE;
               -- NACK here !
             end if;
           end if;
@@ -281,9 +290,9 @@ begin
         
         when RECEIVE_DATA =>
           if (i2c_r_done_p = '1') then
-            dat_byte_count <= dat_byte_count + 1;
+            bytes_left <= bytes_left - 1;
             wb_dat_out <= wb_dat_out(wb_dat_out'length-1 downto 8) & i2c_rx_byte;
-            if (dat_byte_count = c_max_data_bytes-1) then
+            if (bytes_left(1 downto 0) = "00") then
               state <= WB_CYCLE;
             end if;
           end if;
@@ -291,11 +300,11 @@ begin
         when SEND_DATA =>
           tx_start_p <= '0';
           if (i2c_w_done_p = '1') then
-            dat_byte_count <= dat_byte_count + 1;
-            wb_dat_in <= wb_dat_in(23 downto 0) & x"00";
             tx_start_p <= '1';
-            if (dat_byte_count = c_max_data_bytes-1) then
-              state <= UART_WRAPPER_STOP;
+            bytes_left <= bytes_left - 1;
+            wb_dat_in <= wb_dat_in(23 downto 0) & x"00";
+            if (bytes_left(1 downto 0) = "00") then
+              state <= WB_CYCLE;
             end if;
           end if;
           
@@ -307,13 +316,34 @@ begin
             wb_cyc <= '0';
             wb_stb <= '0';
             wb_we  <= '0';
-            if (wb_we = '1') then
+            -- If last byte was sent, bytes_left wraps around to 0xf..ff
+            -- in RX/TX state; go back to IDLE if so.
+            --
+            -- Otherwise, if we are to receive (WB to write), go back
+            -- to RX state, incrementing the WB address.
+            --
+            -- Finally, if we are to send (WB to read), get the data
+            -- and go back to TX state, incrementing the WB address.
+            -- The TX state handles shifting of WB data.
+            if (bytes_left = (bytes_left'range => '1')) then
               state <= UART_WRAPPER_STOP;
+            elsif (wb_we = '1') then
+              wb_adr <= wb_adr + 4;
+              state <= RECEIVE_DATA;
             else
-              wb_dat_in <= wbm_i.dat;
-              state <= SEND_DATA;
               tx_start_p <= '1';
+              wb_dat_in <= wbm_i.dat;
+              wb_adr <= wb_adr + 4;
+              state <= SEND_DATA;
             end if;
+          end if;
+          
+          if (wb_err = '1') then
+            wb_cyc <= '0';
+            wb_stb <= '0';
+            wb_we  <= '0';
+            
+            state <= UART_WRAPPER_STOP;
           end if;
           
         when UART_WRAPPER_STOP =>
