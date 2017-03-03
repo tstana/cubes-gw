@@ -54,7 +54,12 @@ entity bemicro_cubes_btm is
     led_n_o     : out std_logic_vector(7 downto 0);
     
     rxd_i       : in  std_logic;
-    txd_o       : out std_logic
+    txd_o       : out std_logic;
+    
+    spi_cs_n_o        : out std_logic;
+    spi_sclk_o        : out std_logic;
+    spi_mosi_o        : out std_logic;
+    spi_miso_i        : in  std_logic
   );
 end entity bemicro_cubes_btm;
 
@@ -68,47 +73,52 @@ architecture arch of bemicro_cubes_btm is
   -- Gateware version number
   ------------------------------------------------------------------------------
   -- Hex-value minor and major version
-  constant c_gw_vers_maj    : std_logic_vector( 7 downto 0) := x"30";
-  constant c_gw_vers_min    : std_logic_vector( 7 downto 0) := x"31";
+  constant c_gw_vers_maj : std_logic_vector( 7 downto 0) := x"30";
+  constant c_gw_vers_min : std_logic_vector( 7 downto 0) := x"31";
   
   -- Concatenate the two together
-  constant c_gw_version     : std_logic_vector(15 downto 0) := c_gw_vers_maj & c_gw_vers_min;
+  constant c_gw_version : std_logic_vector(15 downto 0) := c_gw_vers_maj & c_gw_vers_min;
   
   ------------------------------------------------------------------------------
   -- I2C address
   ------------------------------------------------------------------------------
-  constant c_i2c_address    : std_logic_vector(6 downto 0) := "1110000";
+  constant c_i2c_address : std_logic_vector(6 downto 0) := "1110000";
   
   ------------------------------------------------------------------------------
   -- Wishbone slaves
   ------------------------------------------------------------------------------
   -- Number of slaves
-  constant c_num_wb_slaves  : natural := 2;
+  constant c_num_wb_slaves    : natural := 3;
   
   -- Slave indices
-  constant c_id_regs_idx    : natural := 0;
-  constant c_led_ctrl_idx   : natural := 1;
+  constant c_id_regs_idx      : natural := 0;
+  constant c_led_ctrl_idx     : natural := 1;
+  constant c_siphra_ctrl_idx  : natural := 2;
   
   -- Slave base addresses
-  constant c_id_regs_addr   : t_wishbone_address := x"00000000";
-  constant c_led_ctrl_addr  : t_wishbone_address := x"00000010";
+  constant c_id_regs_addr     : t_wishbone_address := x"00000000";
+  constant c_led_ctrl_addr    : t_wishbone_address := x"00000010";
+  constant c_siphra_ctrl_addr : t_wishbone_address := x"00000020";
   
   -- Slave xwb_crossbar masks
-  constant c_id_regs_mask   : t_wishbone_address := x"fffffff0";
-  constant c_led_ctrl_mask  : t_wishbone_address := x"fffffff0";
+  constant c_id_regs_mask     : t_wishbone_address := x"fffffff0";
+  constant c_led_ctrl_mask    : t_wishbone_address := x"fffffff0";
+  constant c_siphra_ctrl_mask : t_wishbone_address := x"fffffff0";
   
   ------------------------------------------------------------------------------
   -- Wishbone address layout
   ------------------------------------------------------------------------------
   constant c_wb_layout : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
-    c_id_regs_idx   => c_id_regs_addr,
-    c_led_ctrl_idx  => c_led_ctrl_addr
+    c_id_regs_idx     => c_id_regs_addr,
+    c_led_ctrl_idx    => c_led_ctrl_addr,
+    c_siphra_ctrl_idx => c_siphra_ctrl_addr
   );
   
   
   constant c_wb_address_mask : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
-    c_id_regs_idx   => c_id_regs_mask,
-    c_led_ctrl_idx  => c_led_ctrl_mask
+    c_id_regs_idx     => c_id_regs_mask,
+    c_led_ctrl_idx    => c_led_ctrl_mask,
+    c_siphra_ctrl_idx => c_siphra_ctrl_mask
   );
   
   --============================================================================
@@ -214,6 +224,23 @@ architecture arch of bemicro_cubes_btm is
       led_o             : out std_logic_vector(7 downto 0)
     );
   end component wb_led_ctrl;
+
+  -- SIPHRA controller slave
+  component wb_siphra_ctrl is
+    port
+    (
+      clk_i      : in  std_logic;
+      rst_n_a_i  : in  std_logic;
+      
+      spi_cs_n_o : out std_logic;
+      spi_sclk_o : out std_logic;
+      spi_mosi_o : out std_logic;
+      spi_miso_i : in  std_logic;
+      
+      wbs_i      : in  t_wishbone_slave_in;
+      wbs_o      : out t_wishbone_slave_out
+    );
+  end component wb_siphra_ctrl;
 
   --============================================================================
   -- Signal declarations
@@ -370,7 +397,25 @@ begin
 
   led_n_o <= not led;
   
+  --============================================================================
+  -- SIPHRA controller slave
+  --============================================================================
+  cmp_wb_siphra_ctrl : wb_siphra_ctrl
+    port map
+    (
+      clk_i      => clk_100meg,
+      rst_n_a_i  => rst_n,
+      
+      spi_cs_n_o => spi_cs_n_o,
+      spi_sclk_o => spi_sclk_o,
+      spi_mosi_o => spi_mosi_o,
+      spi_miso_i => spi_miso_i,
+      
+      wbs_i      => xwb_masters_out(c_siphra_ctrl_idx),
+      wbs_o      => xwb_masters_in(c_siphra_ctrl_idx)
+    );
 
+    
 end architecture arch;
 --==============================================================================
 --  architecture end
