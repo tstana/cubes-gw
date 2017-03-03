@@ -72,7 +72,7 @@ entity siphra_ctrl is
     spi_cs_n_o        : out std_logic;
     spi_sclk_o        : out std_logic;
     spi_mosi_o        : out std_logic;
-    spi_miso_i        : in  std_logic    
+    spi_miso_i        : in  std_logic
   );
 end entity siphra_ctrl;
 
