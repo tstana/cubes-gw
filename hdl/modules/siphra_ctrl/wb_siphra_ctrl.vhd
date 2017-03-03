@@ -68,8 +68,11 @@ architecture behav of wb_siphra_ctrl is
   component siphra_ctrl is
     generic
     (
-      g_num_addr_bits : natural :=  7;
-      g_num_data_bits : natural := 26
+      -- Number of address bits of a SIPHRA register
+      g_reg_addr_bits     : natural :=  7;
+
+      -- Max. number of bits existing for a SIPHRA register
+      g_reg_data_bits_max : natural := 26
     );
     port
     (
@@ -89,9 +92,9 @@ architecture behav of wb_siphra_ctrl is
       reg_op_i          : in  std_logic;
       
       -- Register address and data
-      reg_addr_i        : in  std_logic_vector(g_num_addr_bits-1 downto 0);
-      reg_data_i        : in  std_logic_vector(g_num_data_bits-1 downto 0);
-      reg_data_o        : out std_logic_vector(g_num_data_bits-1 downto 0);
+      reg_addr_i        : in  std_logic_vector(g_reg_addr_bits-1 downto 0);
+      reg_data_i        : in  std_logic_vector(g_reg_data_bits_max-1 downto 0);
+      reg_data_o        : out std_logic_vector(g_reg_data_bits_max-1 downto 0);
       
       -- Register operation done
       reg_op_ready_o    : out std_logic;
@@ -257,8 +260,11 @@ begin
   cmp_siphra_ctrl : siphra_ctrl
     generic map
     (
-      g_num_addr_bits => c_num_addr_bits,
-      g_num_data_bits => c_num_data_bits
+      -- Number of address bits of a SIPHRA register
+      g_reg_addr_bits     => c_num_addr_bits,
+
+      -- Max. number of bits existing for a SIPHRA register
+      g_reg_data_bits_max => c_num_data_bits
     )
     port map
     (

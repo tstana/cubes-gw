@@ -38,8 +38,11 @@ use work.siphra_pkg.all;
 entity siphra_ctrl is
   generic
   (
-    g_num_addr_bits : natural :=  7;
-    g_num_data_bits : natural := 26
+    -- Number of address bits of a SIPHRA register
+    g_reg_addr_bits     : natural :=  7;
+
+    -- Max. number of bits existing for a SIPHRA register
+    g_reg_data_bits_max : natural := 26
   );
   port
   (
@@ -59,9 +62,9 @@ entity siphra_ctrl is
     reg_op_i          : in  std_logic;
     
     -- Register address and data
-    reg_addr_i        : in  std_logic_vector(g_num_addr_bits-1 downto 0);
-    reg_data_i        : in  std_logic_vector(g_num_data_bits-1 downto 0);
-    reg_data_o        : out std_logic_vector(g_num_data_bits-1 downto 0);
+    reg_addr_i        : in  std_logic_vector(g_reg_addr_bits-1 downto 0);
+    reg_data_i        : in  std_logic_vector(g_reg_data_bits_max-1 downto 0);
+    reg_data_o        : out std_logic_vector(g_reg_data_bits_max-1 downto 0);
     
     -- Register operation done
     reg_op_ready_o    : out std_logic;
@@ -97,9 +100,9 @@ architecture behav of siphra_ctrl is
   -- Add the R/W bit to the address width
   -- ** for use in adding to number of bits to send via SPI without incurring
   --    an extra adder.
-  constant c_addr_op_width    : natural := g_num_addr_bits + 1;
-  constant c_addr_bit_shifts  : natural := g_num_addr_bits - 1;
-  constant c_num_packet_bits  : natural := g_num_addr_bits + 1 + g_num_data_bits;
+  constant c_addr_op_width    : natural := g_reg_addr_bits + 1;
+  constant c_addr_bit_shifts  : natural := g_reg_addr_bits - 1;
+  constant c_num_packet_bits  : natural := g_reg_addr_bits + 1 + g_reg_data_bits_max;
 
   --============================================================================
   -- Component declarations
@@ -160,9 +163,9 @@ architecture behav of siphra_ctrl is
   signal spi_cs           : std_logic;
     
   signal state            : t_state;
-  signal data_sreg        : std_logic_vector(g_num_data_bits-1 downto 0);
-  signal addr_sreg        : std_logic_vector(g_num_addr_bits-1 downto 0);
-  signal shift_count      : unsigned(log2_ceil(g_num_data_bits)-1 downto 0);
+  signal data_sreg        : std_logic_vector(g_reg_data_bits_max-1 downto 0);
+  signal addr_sreg        : std_logic_vector(g_reg_addr_bits-1 downto 0);
+  signal shift_count      : unsigned(log2_ceil(g_reg_data_bits_max)-1 downto 0);
   signal bits_to_send     : unsigned(log2_ceil(c_num_packet_bits)-1 downto 0);
   signal reg_op_ready     : std_logic;
   
@@ -259,7 +262,7 @@ begin
       reg_data_o <= (others => '0');
     elsif rising_edge(clk_i) then
       if (reg_op_ready = '1') then
-        reg_data_o <= spi_data_out(g_num_data_bits-1 downto 0);
+        reg_data_o <= spi_data_out(g_reg_data_bits_max-1 downto 0);
       end if;
     end if;
   end process p_reg_data_out;
