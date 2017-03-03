@@ -7,7 +7,6 @@ add wave -noupdate /testbench/DUT/reg_op_start_p_i
 add wave -noupdate /testbench/DUT/reg_op_i
 add wave -noupdate -radix binary /testbench/DUT/reg_addr_i
 add wave -noupdate -radix binary /testbench/DUT/reg_data_i
-add wave -noupdate /testbench/DUT/reg_op_ready_o
 add wave -noupdate /testbench/DUT/state
 add wave -noupdate -radix unsigned /testbench/DUT/bits_to_send
 add wave -noupdate -radix unsigned /testbench/DUT/shift_count
@@ -19,11 +18,13 @@ add wave -noupdate /testbench/DUT/spi_sclk_o
 add wave -noupdate /testbench/DUT/spi_mosi_o
 add wave -noupdate /testbench/DUT/spi_miso_i
 add wave -noupdate /testbench/DUT/spi_cs
+add wave -noupdate /testbench/DUT/reg_op_ready_o
+add wave -noupdate /testbench/DUT/reg_data_o
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {43805000 ps} 0}
+WaveRestoreCursors {{Cursor 1} {59199712 ps} 0}
 quietly wave cursor active 1
-configure wave -namecolwidth 225
-configure wave -valuecolwidth 100
+configure wave -namecolwidth 269
+configure wave -valuecolwidth 216
 configure wave -justifyvalue left
 configure wave -signalnamewidth 0
 configure wave -snapdistance 10
@@ -36,4 +37,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits us
 update
-WaveRestoreZoom {16838750 ps} {49651250 ps}
+WaveRestoreZoom {0 ps} {105 us}

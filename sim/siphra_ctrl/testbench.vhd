@@ -32,6 +32,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.gencores_pkg.all;
+use work.wishbone_pkg.all;
 use work.siphra_pkg.all;
 
 
@@ -42,13 +43,10 @@ end entity testbench;
 architecture behav of testbench is
 
   --============================================================================
-  -- Type declarations
+  -- Constant declarations
   --============================================================================
   constant c_clk_per : time := 10 ns;
 
-  --============================================================================
-  -- Constant declarations
-  --============================================================================
   constant c_num_addr_bits : natural :=  7;
   constant c_num_data_bits : natural := 26;
 
@@ -81,6 +79,7 @@ architecture behav of testbench is
       -- Register address and data
       reg_addr_i        : in  std_logic_vector(g_num_addr_bits-1 downto 0);
       reg_data_i        : in  std_logic_vector(g_num_data_bits-1 downto 0);
+      reg_data_o        : out std_logic_vector(g_num_data_bits-1 downto 0);
       
       -- Register operation done
       reg_op_ready_o    : out std_logic;
@@ -106,7 +105,8 @@ architecture behav of testbench is
   signal reg_op         : std_logic;
   signal reg_op_ready   : std_logic;
   signal reg_addr       : std_logic_vector(c_num_addr_bits-1 downto 0);
-  signal reg_data       : std_logic_vector(c_num_data_bits-1 downto 0);
+  signal reg_data_in    : std_logic_vector(c_num_data_bits-1 downto 0);
+  signal reg_data_out   : std_logic_vector(c_num_data_bits-1 downto 0);
   
   signal spi_cs_n_o     : std_logic;
   signal spi_mosi_o     : std_logic;
@@ -165,7 +165,8 @@ begin
       
       -- Register address and data
       reg_addr_i        => reg_addr,
-      reg_data_i        => reg_data,
+      reg_data_i        => reg_data_in,
+      reg_data_o        => reg_data_out,
       
       -- Register operation done
       reg_op_ready_o    => reg_op_ready,
@@ -176,7 +177,7 @@ begin
       spi_cs_n_o        => spi_cs_n_o,
       spi_sclk_o        => spi_sclk_o,
       spi_mosi_o        => spi_mosi_o,
-      spi_miso_i        => spi_miso_i
+      spi_miso_i        => spi_mosi_o
     );
 
 
@@ -185,17 +186,17 @@ begin
   --============================================================================
   p_stim : process is
   begin
-    reg_addr <= (others => '0');
-    reg_data <= (others => '0');
-    reg_op   <= '0';
+    reg_addr    <= (others => '0');
+    reg_data_in <= (others => '0');
+    reg_op      <= '0';
     reg_op_start_p <= '0';
 
     wait for 200 ns;
     wait until rising_edge(clk_100meg);
     
-    reg_addr <= f_siphra_addr7bit(c_ctrl_ch_11);
-    reg_data <= "00" & x"abcd01";
-    reg_op   <= '1';
+    reg_addr    <= f_siphra_addr7bit(c_ctrl_ch_11);
+    reg_data_in <= "00" & x"abcd01";
+    reg_op      <= '1';
     reg_op_start_p <= '1';
     
     wait until rising_edge(clk_100meg);
@@ -207,9 +208,9 @@ begin
     wait for 5 us;
     wait until rising_edge(clk_100meg);
     
-    reg_addr <= f_siphra_addr7bit(c_cal_ctrl);
-    reg_data <= "00" & x"000031";
-    reg_op   <= '1';
+    reg_addr    <= f_siphra_addr7bit(c_cal_ctrl);
+    reg_data_in <= "00" & x"000031";
+    reg_op      <= '1';
     reg_op_start_p <= '1';
     
     wait until rising_edge(clk_100meg);
@@ -218,11 +219,43 @@ begin
     
     wait until reg_op_ready = '1';
     
-    report "Done!" severity Note;
+    report "Stimuli process done!" severity Note;
   
     wait;
   end process p_stim;
 
+  --============================================================================
+  -- Monitor
+  --============================================================================
+  p_mon : process is
+    variable bits_in_reg  : natural;
+    variable addr_in      : std_logic_vector(c_num_addr_bits-1 downto 0);
+    variable reg_in       : std_logic_vector(c_num_data_bits-1 downto 0);
+    variable reg_out      : std_logic_vector(c_num_data_bits-1 downto 0);
+  begin
+    -- Wait for stimuli to start an operation
+    wait until reg_op_start_p = '1';
+    bits_in_reg := f_siphra_reg_width(reg_addr);
+    addr_in := reg_addr;
+    reg_in := reg_data_in;
+    
+    -- Wait for siphra_ctrl to finish operation and check appropriate number
+    -- of bits at the siphra_ctrl register output is equal to what we input
+    wait until reg_op_ready = '1';
+    wait until rising_edge(clk_100meg);
+    wait until rising_edge(clk_100meg);
+    if (bits_in_reg = c_num_data_bits) then
+      reg_out := reg_data_out;
+    else
+      reg_out(bits_in_reg-1 downto 0) := reg_data_out(bits_in_reg-1 downto 0);
+      reg_out(c_num_data_bits-1 downto bits_in_reg) := (others => '0');
+    end if;
+
+    report "IN  : " & f_bits2string(reg_in);
+    report "OUT : " & f_bits2string(reg_out);
+    
+  end process p_mon;
+  
 end architecture behav;
 --==============================================================================
 --  architecture end
