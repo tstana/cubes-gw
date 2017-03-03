@@ -148,6 +148,7 @@ end generate gen_bits_to_send_port;
         rx_sreg         <= (others => '0');
         spi_mosi_o      <= '0';
         counter         <= (others => '0');
+        data_o          <= (others => '0');
       else
         case state is
           -- Waits for start of transfer command
