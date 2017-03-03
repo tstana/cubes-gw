@@ -98,6 +98,7 @@ architecture behav of siphra_ctrl is
   --    an extra adder.
   constant c_addr_op_width    : natural := g_num_addr_bits + 1;
   constant c_addr_bit_shifts  : natural := g_num_addr_bits - 1;
+  constant c_num_packet_bits  : natural := g_num_addr_bits + 1 + g_num_data_bits;
 
   --============================================================================
   -- Component declarations
@@ -161,12 +162,12 @@ architecture behav of siphra_ctrl is
   signal data_sreg      : std_logic_vector(g_num_data_bits-1 downto 0);
   signal addr_sreg      : std_logic_vector(g_num_addr_bits-1 downto 0);
   signal shift_count    : unsigned(log2_ceil(g_num_data_bits)-1 downto 0);
-  signal bits_to_send   : unsigned(log2_ceil(g_num_data_bits)-1 downto 0);
+  signal bits_to_send   : unsigned(log2_ceil(c_num_packet_bits)-1 downto 0);
   signal reg_op_ready   : std_logic;
 
   signal spi_start_p    : std_logic;
-  signal spi_data_in    : std_logic_vector(g_num_data_bits-1 downto 0);
-  signal spi_data_out   : std_logic_vector(g_num_data_bits-1 downto 0);
+  signal spi_data_in    : std_logic_vector(c_num_packet_bits-1 downto 0);
+  signal spi_data_out   : std_logic_vector(c_num_packet_bits-1 downto 0);
   signal spi_ready      : std_logic;
   
 --==============================================================================
@@ -186,7 +187,7 @@ begin
       addr_sreg <= (others => '0');
       shift_count <= (others => '0');
       bits_to_send <= (others => '0');
-      spi_data_out <= (others => '0');
+      spi_data_in  <= (others => '0');
       spi_start_p  <= '0';
       spi_cs       <= '0';
       
@@ -200,14 +201,14 @@ begin
           reg_op_ready <= '1';
           if (reg_op_start_p_i = '1') then
             reg_op_ready <= '0';
-            shift_count <= to_unsigned(f_siphra_reg_width(reg_addr_i), shift_count'length);
+            shift_count <= to_unsigned(f_siphra_reg_width(reg_addr_i)-1, shift_count'length);
             data_sreg <= reg_data_i;
             addr_sreg <= reg_addr_i;
             state <= SHIFT_DATA;
           end if;
           
         when SHIFT_DATA =>
-          spi_data_out <= data_sreg(0) & spi_data_out(spi_data_out'high downto 1);
+          spi_data_in <= data_sreg(0) & spi_data_in(spi_data_in'high downto 1);
           data_sreg <= '0' & data_sreg(data_sreg'high downto 1);
           shift_count <= shift_count - 1;
           if (shift_count = 0) then
@@ -215,20 +216,20 @@ begin
           end if;
           
         when SHIFT_OP =>
-          spi_data_out <= reg_op_i & spi_data_out(spi_data_out'high downto 1);
+          spi_data_in <= reg_op_i & spi_data_in(spi_data_in'high downto 1);
           shift_count  <= to_unsigned(c_addr_bit_shifts, shift_count'length);
           state <= SHIFT_ADDR;
           
         when SHIFT_ADDR =>
-          spi_data_out <= addr_sreg(0) & spi_data_out(spi_data_out'high downto 1);
-          data_sreg <= ('0' & data_sreg(data_sreg'high downto 1));
+          spi_data_in <= addr_sreg(0) & spi_data_in(spi_data_in'high downto 1);
+          addr_sreg <= ('0' & addr_sreg(addr_sreg'high downto 1));
           shift_count <= shift_count - 1;
           if (shift_count = 0) then
             state <= SPI_START_TRANSFER;
           end if;
           
         when SPI_START_TRANSFER =>
-          bits_to_send <= to_unsigned(c_addr_op_width + f_siphra_reg_width(reg_addr_i),
+          bits_to_send <= to_unsigned( (c_addr_op_width + f_siphra_reg_width(reg_addr_i)),
                               bits_to_send'length);
           spi_start_p <= '1';
           spi_cs <= '1';
@@ -264,7 +265,7 @@ begin
       g_data_bits_generic => false,
 
       -- number of data bits per transfer; if from port, set to max. value expected on port
-      g_num_data_bits  => g_num_data_bits
+      g_num_data_bits  => c_num_packet_bits
     )
     port map
     (
@@ -275,7 +276,7 @@ begin
         
         start_p_i  => spi_start_p,
         
-        cpol_i     => '1',
+        cpol_i     => '0',
         
         data_len_i => std_logic_vector(bits_to_send),
         

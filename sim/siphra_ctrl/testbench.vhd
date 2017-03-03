@@ -32,6 +32,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.gencores_pkg.all;
+use work.siphra_pkg.all;
 
 
 entity testbench is
@@ -175,7 +176,7 @@ begin
       spi_cs_n_o        => spi_cs_n_o,
       spi_sclk_o        => spi_sclk_o,
       spi_mosi_o        => spi_mosi_o,
-      spi_miso_i        => spi_mosi_o
+      spi_miso_i        => spi_miso_i
     );
 
 
@@ -184,6 +185,40 @@ begin
   --============================================================================
   p_stim : process is
   begin
+    reg_addr <= (others => '0');
+    reg_data <= (others => '0');
+    reg_op   <= '0';
+    reg_op_start_p <= '0';
+
+    wait for 200 ns;
+    wait until rising_edge(clk_100meg);
+    
+    reg_addr <= f_siphra_addr7bit(c_ctrl_ch_11);
+    reg_data <= "00" & x"abcd01";
+    reg_op   <= '1';
+    reg_op_start_p <= '1';
+    
+    wait until rising_edge(clk_100meg);
+    
+    reg_op_start_p <= '0';
+    
+    wait until reg_op_ready = '1';
+    
+    wait for 5 us;
+    wait until rising_edge(clk_100meg);
+    
+    reg_addr <= f_siphra_addr7bit(c_cal_ctrl);
+    reg_data <= "00" & x"000031";
+    reg_op   <= '1';
+    reg_op_start_p <= '1';
+    
+    wait until rising_edge(clk_100meg);
+    
+    reg_op_start_p <= '0';
+    
+    wait until reg_op_ready = '1';
+    
+    report "Done!" severity Note;
   
     wait;
   end process p_stim;

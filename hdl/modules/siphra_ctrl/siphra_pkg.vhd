@@ -75,11 +75,17 @@ package siphra_pkg is
   --============================================================================
   -- Function declarations
   --============================================================================
-  -- Helper function to match address to 8-bit address definitions above
-  function f_7to8(inp : std_logic_vector(6 downto 0))
+  -- 7- to 8-bit address
+  -- ** input address, try to match to 8-bit definition above
+  function f_siphra_addr8bit(inp : std_logic_vector(6 downto 0))
                 return std_logic_vector;
   
-  -- Get number of data bits based on address
+  -- 8- to 7-bit address
+  -- ** input 8-bit definition above, return 7-bit address
+  function f_siphra_addr7bit(inp : std_logic_vector(7 downto 0))
+                return std_logic_vector;
+  
+  -- Get number of bits in register based on address
   -- Returns <number of bits - 1>
   function f_siphra_reg_width(addr : std_logic_vector(6 downto 0))
                 return natural;
@@ -89,14 +95,23 @@ end package siphra_pkg;
 
 package body siphra_pkg is
 
-  -- Helper function to match address to 8-bit address definitions above
-  function f_7to8(inp : std_logic_vector(6 downto 0))
+  -- 7- to 8-bit address
+  -- ** input address, try to match to 8-bit definition above
+  function f_siphra_addr8bit(inp : std_logic_vector(6 downto 0))
                 return std_logic_vector is
   begin
     return '0' & inp;
-  end function f_7to8;
+  end function f_siphra_addr8bit;
 
-  -- Get number of data bits based on address
+  -- 8- to 7-bit address
+  -- ** input 8-bit definition above, return 7-bit address
+  function f_siphra_addr7bit(inp : std_logic_vector(7 downto 0))
+                return std_logic_vector is
+  begin
+    return inp(6 downto 0);
+  end function f_siphra_addr7bit;
+
+  -- Get number of bits in register based on address
   -- Returns <number of bits - 1>
   function f_siphra_reg_width(addr : std_logic_vector(6 downto 0))
                 return natural is
@@ -106,7 +121,7 @@ package body siphra_pkg is
     
   begin
   
-    addr8 := f_7to8(addr);
+    addr8 := f_siphra_addr8bit(addr);
     
     case addr8 is
       when c_ctrl_ch_01 =>
@@ -210,7 +225,7 @@ package body siphra_pkg is
       
     end case;
     
-    return bits-1;
+    return bits;
   end function f_siphra_reg_width;
 
 end package body siphra_pkg;
