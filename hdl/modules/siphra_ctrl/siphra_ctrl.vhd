@@ -61,6 +61,7 @@ entity siphra_ctrl is
     -- Register address and data
     reg_addr_i        : in  std_logic_vector(g_num_addr_bits-1 downto 0);
     reg_data_i        : in  std_logic_vector(g_num_data_bits-1 downto 0);
+    reg_data_o        : out std_logic_vector(g_num_data_bits-1 downto 0);
     
     -- Register operation done
     reg_op_ready_o    : out std_logic;
@@ -156,19 +157,19 @@ architecture behav of siphra_ctrl is
   --============================================================================
   -- Signal declarations
   --============================================================================
-  signal spi_cs         : std_logic;
+  signal spi_cs           : std_logic;
+    
+  signal state            : t_state;
+  signal data_sreg        : std_logic_vector(g_num_data_bits-1 downto 0);
+  signal addr_sreg        : std_logic_vector(g_num_addr_bits-1 downto 0);
+  signal shift_count      : unsigned(log2_ceil(g_num_data_bits)-1 downto 0);
+  signal bits_to_send     : unsigned(log2_ceil(c_num_packet_bits)-1 downto 0);
+  signal reg_op_ready     : std_logic;
   
-  signal state          : t_state;
-  signal data_sreg      : std_logic_vector(g_num_data_bits-1 downto 0);
-  signal addr_sreg      : std_logic_vector(g_num_addr_bits-1 downto 0);
-  signal shift_count    : unsigned(log2_ceil(g_num_data_bits)-1 downto 0);
-  signal bits_to_send   : unsigned(log2_ceil(c_num_packet_bits)-1 downto 0);
-  signal reg_op_ready   : std_logic;
-
-  signal spi_start_p    : std_logic;
-  signal spi_data_in    : std_logic_vector(c_num_packet_bits-1 downto 0);
-  signal spi_data_out   : std_logic_vector(c_num_packet_bits-1 downto 0);
-  signal spi_ready      : std_logic;
+  signal spi_start_p      : std_logic;
+  signal spi_data_in      : std_logic_vector(c_num_packet_bits-1 downto 0);
+  signal spi_data_out     : std_logic_vector(c_num_packet_bits-1 downto 0);
+  signal spi_ready        : std_logic;
   
 --==============================================================================
 --  architecture begin
@@ -217,7 +218,7 @@ begin
           
         when SHIFT_OP =>
           spi_data_in <= reg_op_i & spi_data_in(spi_data_in'high downto 1);
-          shift_count  <= to_unsigned(c_addr_bit_shifts, shift_count'length);
+          shift_count <= to_unsigned(c_addr_bit_shifts, shift_count'length);
           state <= SHIFT_ADDR;
           
         when SHIFT_ADDR =>
@@ -249,8 +250,19 @@ begin
     end if;
   end process p_fsm;
   
-  -- Outputs assignment
+  -- Assign FSM outputs
   reg_op_ready_o <= reg_op_ready;
+  
+  p_reg_data_out : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      reg_data_o <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (reg_op_ready = '1') then
+        reg_data_o <= spi_data_out(g_num_data_bits-1 downto 0);
+      end if;
+    end if;
+  end process p_reg_data_out;
   
   --============================================================================
   -- Instantiate SPI master
@@ -269,29 +281,28 @@ begin
     )
     port map
     (
-        clk_sys_i  => clk_i,
-        rst_n_i    => rst_n_a_i,
-        
-        cs_i       => spi_cs,
-        
-        start_p_i  => spi_start_p,
-        
-        cpol_i     => '0',
-        
-        data_len_i => std_logic_vector(bits_to_send),
-        
-        data_i     => spi_data_in,
-        
-        ready_o    => spi_ready,
-        
-        data_o     => spi_data_out,
-        
-        spi_cs_n_o => spi_cs_n_o,
-        spi_sclk_o => spi_sclk_o,
-        spi_mosi_o => spi_mosi_o,
-        spi_miso_i => spi_miso_i
+      clk_sys_i  => clk_i,
+      rst_n_i    => rst_n_a_i,
+      
+      cs_i       => spi_cs,
+      
+      start_p_i  => spi_start_p,
+      
+      cpol_i     => '0',
+      
+      data_len_i => std_logic_vector(bits_to_send),
+      
+      data_i     => spi_data_in,
+      
+      ready_o    => spi_ready,
+      
+      data_o     => spi_data_out,
+      
+      spi_cs_n_o => spi_cs_n_o,
+      spi_sclk_o => spi_sclk_o,
+      spi_mosi_o => spi_mosi_o,
+      spi_miso_i => spi_miso_i
     );
-
 
 end architecture behav;
 --==============================================================================
