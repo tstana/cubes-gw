@@ -167,8 +167,6 @@ begin
       datar_write_p <= '0';
       
     elsif rising_edge(clk_i) then
-      csr_write_p <= '0';
-      datar_write_p <= '0';
       if (wb_cyc = '1') and (wb_stb = '1') then
         wb_ack <= '1';
         if (wb_we = '1') then
@@ -194,6 +192,8 @@ begin
       
       if (wb_ack = '1') then
         wb_ack <= '0';
+        csr_write_p <= '0';
+        datar_write_p <= '0';
       end if;
     end if;
   end process p_wb_regs;
@@ -219,9 +219,9 @@ begin
       if (csr_write_p = '1') then
         reg_op <= wb_dat_in(0);
         reg_addr <= wb_dat_in(7 downto 1);
-        reg_op_start <= wb_dat_in(9);
+        reg_op_start <= wb_dat_in(8);
       elsif (reg_op_ready = '1') then
-        reg_op <= '0';
+        reg_op_start <= '0';
       end if;
     end if;
   end process p_csr;
