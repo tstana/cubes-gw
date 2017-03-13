@@ -268,7 +268,11 @@ begin
         when DECODE_MSG_ID =>
           if (i2c_r_done_p = '1') then
             bytes_left <= to_unsigned(3, bytes_left'length);
-            if (i2c_rx_byte = x"90") then
+            if (i2c_rx_byte = x"11") then
+              wb_adr <= x"00000000";
+              bytes_left <= to_unsigned(47, bytes_left'length);
+              state <= WB_CYCLE;
+            elsif (i2c_rx_byte = x"90") then
               wb_adr <= x"00000000";
               bytes_left <= to_unsigned(7, bytes_left'length);
               state <= WB_CYCLE;
@@ -278,6 +282,10 @@ begin
             elsif (i2c_rx_byte = x"92") then
               wb_adr <= x"00000014";
               state <= WB_CYCLE;
+            elsif (i2c_rx_byte = x"93") then
+              wb_adr <= x"00000020";
+              bytes_left <= to_unsigned(7, bytes_left'length);
+              state <= RECEIVE_DATA;
             else
               state <= UART_WRAPPER_STOP;
               -- state <= IDLE;
@@ -292,7 +300,7 @@ begin
         when RECEIVE_DATA =>
           if (i2c_r_done_p = '1') then
             bytes_left <= bytes_left - 1;
-            wb_dat_out <= wb_dat_out(wb_dat_out'length-1 downto 8) & i2c_rx_byte;
+            wb_dat_out <= wb_dat_out(wb_dat_out'length-9 downto 0) & i2c_rx_byte;
             if (bytes_left(1 downto 0) = "00") then
               state <= WB_CYCLE;
             end if;
@@ -307,7 +315,7 @@ begin
           tx_start_p <= '0';
           if (i2c_w_done_p = '1') then
             bytes_left <= bytes_left - 1;
-            wb_dat_in <= wb_dat_in(23 downto 0) & x"00";
+            wb_dat_in <= wb_dat_in(wb_dat_in'length-9 downto 0) & x"00";
             -- TODO: Remove me for I2C
             state <= UART_TX_START;
             if (bytes_left(1 downto 0) = "00") then
