@@ -15,6 +15,7 @@ set_location_assignment PIN_U18 -to spi_sclk_o
 set_location_assignment PIN_U17 -to spi_mosi_o
 set_location_assignment PIN_R18 -to spi_miso_i
 set_location_assignment PIN_P18 -to spi_cs_n_o
+
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50meg_i
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n_o[6]

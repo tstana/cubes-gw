@@ -59,7 +59,12 @@ entity bemicro_cubes_btm is
     spi_cs_n_o        : out std_logic;
     spi_sclk_o        : out std_logic;
     spi_mosi_o        : out std_logic;
-    spi_miso_i        : in  std_logic
+    spi_miso_i        : in  std_logic;
+    
+    dbg_cs_n_o        : out std_logic;
+    dbg_sclk_o        : out std_logic;
+    dbg_mosi_o        : out std_logic;
+    dbg_miso_o        : out std_logic
   );
 end entity bemicro_cubes_btm;
 
@@ -229,16 +234,16 @@ architecture arch of bemicro_cubes_btm is
   component wb_siphra_ctrl is
     port
     (
-      clk_i      : in  std_logic;
-      rst_n_a_i  : in  std_logic;
+      clk_i           : in  std_logic;
+      rst_n_a_i       : in  std_logic;
       
-      spi_cs_n_o : out std_logic;
-      spi_sclk_o : out std_logic;
-      spi_mosi_o : out std_logic;
-      spi_miso_i : in  std_logic;
+      spi_cs_n_o      : out std_logic;
+      spi_sclk_o      : out std_logic;
+      spi_mosi_o      : out std_logic;
+      spi_miso_i      : in  std_logic;
       
-      wbs_i      : in  t_wishbone_slave_in;
-      wbs_o      : out t_wishbone_slave_out
+      wbs_i           : in  t_wishbone_slave_in;
+      wbs_o           : out t_wishbone_slave_out
     );
   end component wb_siphra_ctrl;
 
@@ -260,6 +265,15 @@ architecture arch of bemicro_cubes_btm is
   signal xwb_slave_out          : t_wishbone_slave_out_array(0 to 0);
   signal xwb_masters_in         : t_wishbone_master_in_array(0 to c_num_wb_slaves-1);
   signal xwb_masters_out        : t_wishbone_master_out_array(0 to c_num_wb_slaves-1);
+  
+  
+  -- Temporary SPI signals
+  -- TODO: Remove!
+  signal spi_cs_n : std_logic;
+  signal spi_sclk : std_logic;
+  signal spi_mosi : std_logic;
+  signal spi_miso : std_logic;
+  signal count    : unsigned(16 downto 0);
 
 --==============================================================================
 --  architecture begin
@@ -403,19 +417,31 @@ begin
   cmp_wb_siphra_ctrl : wb_siphra_ctrl
     port map
     (
-      clk_i      => clk_100meg,
-      rst_n_a_i  => rst_n,
+      clk_i           => clk_100meg,
+      rst_n_a_i       => rst_n,
       
-      spi_cs_n_o => spi_cs_n_o,
-      spi_sclk_o => spi_sclk_o,
-      spi_mosi_o => spi_mosi_o,
-      spi_miso_i => spi_miso_i,
+      spi_cs_n_o      => spi_cs_n,
+      spi_sclk_o      => spi_sclk,
+      spi_mosi_o      => spi_mosi,
+      spi_miso_i      => spi_miso,
       
-      wbs_i      => xwb_masters_out(c_siphra_ctrl_idx),
-      wbs_o      => xwb_masters_in(c_siphra_ctrl_idx)
+      wbs_i           => xwb_masters_out(c_siphra_ctrl_idx),
+      wbs_o           => xwb_masters_in(c_siphra_ctrl_idx)
     );
 
-    
+  -- Debug outputs
+  dbg_cs_n_o <= spi_cs_n;
+  dbg_sclk_o <= spi_sclk;
+  dbg_mosi_o <= spi_mosi;
+  dbg_miso_o <= spi_miso;
+  
+  -- Actual SPI outputs
+  -- TODO: Remove!
+  spi_cs_n_o <= spi_cs_n;
+  spi_sclk_o <= spi_sclk;
+  spi_mosi_o <= spi_mosi;
+  spi_miso   <= spi_miso_i;
+  
 end architecture arch;
 --==============================================================================
 --  architecture end

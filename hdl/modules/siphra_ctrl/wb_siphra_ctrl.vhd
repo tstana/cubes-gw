@@ -35,16 +35,16 @@ use work.wishbone_pkg.all;
 entity wb_siphra_ctrl is
   port
   (
-    clk_i      : in  std_logic;
-    rst_n_a_i  : in  std_logic;
+    clk_i       : in  std_logic;
+    rst_n_a_i   : in  std_logic;
     
-    spi_cs_n_o : out std_logic;
-    spi_sclk_o : out std_logic;
-    spi_mosi_o : out std_logic;
-    spi_miso_i : in  std_logic;
+    spi_cs_n_o  : out std_logic;
+    spi_sclk_o  : out std_logic;
+    spi_mosi_o  : out std_logic;
+    spi_miso_i  : in  std_logic;
     
-    wbs_i      : in  t_wishbone_slave_in;
-    wbs_o      : out t_wishbone_slave_out
+    wbs_i       : in  t_wishbone_slave_in;
+    wbs_o       : out t_wishbone_slave_out
   );
 end entity wb_siphra_ctrl;
 
@@ -59,8 +59,8 @@ architecture behav of wb_siphra_ctrl is
   constant c_num_data_bits      : natural := 26;
   
   -- Addresses
-  constant c_siphra_csr_ofs     : std_logic_vector(1 downto 0) := "00";
-  constant c_siphra_datar_ofs   : std_logic_vector(1 downto 0) := "01";
+  constant c_siphra_datar_ofs   : std_logic_vector(1 downto 0) := "00";
+  constant c_siphra_csr_ofs     : std_logic_vector(1 downto 0) := "01";
 
   --============================================================================
   -- Component declarations
@@ -125,10 +125,8 @@ architecture behav of wb_siphra_ctrl is
   signal datar            : std_logic_vector(c_wishbone_data_width-1 downto 0);
   signal datar_write_p    : std_logic;
   
-  signal reg_op_start     : std_logic;
-  signal reg_op_start_d0  : std_logic;
-  signal reg_op_start_p   : std_logic;
   signal reg_op           : std_logic;
+  signal reg_op_start_p   : std_logic;
   signal reg_op_ready     : std_logic;
   signal reg_addr         : std_logic_vector(c_num_addr_bits-1 downto 0);
   signal reg_data_in      : std_logic_vector(c_num_data_bits-1 downto 0);
@@ -171,19 +169,19 @@ begin
         wb_ack <= '1';
         if (wb_we = '1') then
           case wb_adr(3 downto 2) is
-            when c_siphra_csr_ofs =>
-              csr_write_p <= '1';
             when c_siphra_datar_ofs =>
               datar_write_p <= '1';
+            when c_siphra_csr_ofs =>
+              csr_write_p <= '1';
             when others =>
               null;
           end case;
         else
           case wb_adr(3 downto 2) is
-            when c_siphra_csr_ofs =>
-              wb_dat_out <= csr;
             when c_siphra_datar_ofs =>
               wb_dat_out <= datar;
+            when c_siphra_csr_ofs =>
+              wb_dat_out <= csr;
             when others =>
               wb_dat_out <= (others => '0');
           end case;
@@ -201,31 +199,6 @@ begin
   --============================================================================
   -- Wishbone-mapped registers
   --============================================================================
-  -- CSR
-  csr(0)            <= reg_op;
-  csr(7 downto 1)   <= reg_addr;
-  csr(8)            <= reg_op_start;
-  csr(15 downto 9)  <= (others => '0');
-  csr(16)           <= reg_op_ready;
-  csr(31 downto 17) <= (others => '0');
-
-  p_csr : process(clk_i, rst_n_a_i) is
-  begin
-    if (rst_n_a_i = '0') then
-      reg_op <= '0';
-      reg_addr <= (others => '0');
-      reg_op_start <= '0';
-    elsif rising_edge(clk_i) then
-      if (csr_write_p = '1') then
-        reg_op <= wb_dat_in(0);
-        reg_addr <= wb_dat_in(7 downto 1);
-        reg_op_start <= wb_dat_in(8);
-      elsif (reg_op_ready = '1') then
-        reg_op_start <= '0';
-      end if;
-    end if;
-  end process p_csr;
-  
   -- DATAR
   datar(c_num_data_bits-1 downto 0) <= reg_data_out;
   datar(31 downto c_num_data_bits)  <= (others => '0');
@@ -241,20 +214,39 @@ begin
     end if;
   end process p_datar;
 
+  -- CSR
+  csr(0)            <= reg_op;
+  csr(7 downto 1)   <= reg_addr;
+  csr(15 downto 8)  <= (others => '0');
+  csr(16)           <= reg_op_ready;
+  csr(31 downto 17) <= (others => '0');
+
+  p_csr : process(clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      reg_op <= '0';
+      reg_addr <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (csr_write_p = '1') then
+        reg_op <= wb_dat_in(0);
+        reg_addr <= wb_dat_in(7 downto 1);
+      end if;
+    end if;
+  end process p_csr;
+  
   --============================================================================
   -- SIPHRA controller core
   --============================================================================
-  -- Generate register operation start pulse to the controller
-  p_reg_start_p : process (clk_i, rst_n_a_i) is
+  -- Start register operation on CSR write
+  -- (+1 clock cycle to forward 'reg_addr' written on 'csr_write_p' to siphra_ctrl)
+  p_reg_op_start : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
-      reg_op_start_d0 <= '0';
-      reg_op_start_p  <= '0';
+      reg_op_start_p <= '0';
     elsif rising_edge(clk_i) then
-      reg_op_start_d0 <= reg_op_start;
-      reg_op_start_p  <= (not reg_op_start_d0) and reg_op_start;
+      reg_op_start_p <= csr_write_p;
     end if;
-  end process p_reg_start_p;
+  end process p_reg_op_start;
   
   -- Instantiate core
   cmp_siphra_ctrl : siphra_ctrl

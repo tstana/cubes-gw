@@ -87,23 +87,11 @@ architecture behav of siphra_ctrl is
   --============================================================================
   type t_state is (
     IDLE,
-    SHIFT_DATA,
-    SHIFT_OP,
-    SHIFT_ADDR,
-    SPI_START_TRANSFER,
-    SPI_TRANSFER
+    START_DELAY,
+    SPI_TRANSFER,
+    END_DELAY
   );
-
-  --============================================================================
-  -- Constant declarations
-  --============================================================================
-  -- Add the R/W bit to the address width
-  -- ** for use in adding to number of bits to send via SPI without incurring
-  --    an extra adder.
-  constant c_addr_op_width    : natural := g_reg_addr_bits + 1;
-  constant c_addr_bit_shifts  : natural := g_reg_addr_bits - 1;
-  constant c_num_packet_bits  : natural := g_reg_addr_bits + 1 + g_reg_data_bits_max;
-
+  
   --============================================================================
   -- Component declarations
   --============================================================================
@@ -160,19 +148,19 @@ architecture behav of siphra_ctrl is
   --============================================================================
   -- Signal declarations
   --============================================================================
+  signal delay_en         : std_logic;
+  signal delay_tick_p     : std_logic;
+  signal delay_count      : unsigned(8 downto 0);
+  signal spi_start_p      : std_logic;
   signal spi_cs           : std_logic;
-    
-  signal state            : t_state;
-  signal data_sreg        : std_logic_vector(g_reg_data_bits_max-1 downto 0);
-  signal addr_sreg        : std_logic_vector(g_reg_addr_bits-1 downto 0);
-  signal shift_count      : unsigned(log2_ceil(g_reg_data_bits_max)-1 downto 0);
-  signal bits_to_send     : unsigned(log2_ceil(c_num_packet_bits)-1 downto 0);
+  signal spi_data_in      : std_logic_vector(c_siphra_num_packet_bits-1 downto 0);
+  signal spi_data_out     : std_logic_vector(c_siphra_num_packet_bits-1 downto 0);
+  signal spi_ready        : std_logic;
+  signal spi_ready_d0     : std_logic;
+  signal spi_ready_p      : std_logic;
   signal reg_op_ready     : std_logic;
   
-  signal spi_start_p      : std_logic;
-  signal spi_data_in      : std_logic_vector(c_num_packet_bits-1 downto 0);
-  signal spi_data_out     : std_logic_vector(c_num_packet_bits-1 downto 0);
-  signal spi_ready        : std_logic;
+  signal state            : t_state;
   
 --==============================================================================
 --  architecture begin
@@ -180,21 +168,34 @@ architecture behav of siphra_ctrl is
 begin
 
   --============================================================================
-  -- FSM to handle variable-length registers on ASIC end
+  -- IOs and links from external world to SPI master
   --============================================================================
-  p_fsm : process (clk_i, rst_n_a_i) is
+  -- Delays between CS assertion/de-assertion and start of SCLK
+  p_spi_start_delay : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      delay_tick_p <= '0';
+      delay_count <= (others => '0');
+    elsif rising_edge(clk_i) then
+      delay_tick_p <= '0';
+      if (delay_en = '1') then
+        delay_count <= delay_count + 1;
+        if (delay_count = 499) then
+          delay_count <= (others => '0');
+          delay_tick_p <= '1';
+        end if;
+      end if;
+    end if;
+  end process p_spi_start_delay;
+
+  p_delay_fsm : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       state <= IDLE;
       spi_cs <= '0';
-      data_sreg <= (others => '0');
-      addr_sreg <= (others => '0');
-      shift_count <= (others => '0');
-      bits_to_send <= (others => '0');
-      spi_data_in  <= (others => '0');
-      spi_start_p  <= '0';
-      spi_cs       <= '0';
-      
+      delay_en <= '0';
+      spi_start_p <= '0';
+      reg_op_ready <= '1';
     elsif rising_edge(clk_i) then
       
       case state is
@@ -204,44 +205,30 @@ begin
           spi_start_p <= '0';
           reg_op_ready <= '1';
           if (reg_op_start_p_i = '1') then
+            state <= START_DELAY;
+            spi_cs <= '1';
             reg_op_ready <= '0';
-            shift_count <= to_unsigned(f_siphra_reg_width(reg_addr_i)-1, shift_count'length);
-            data_sreg <= reg_data_i;
-            addr_sreg <= reg_addr_i;
-            state <= SHIFT_DATA;
           end if;
           
-        when SHIFT_DATA =>
-          spi_data_in <= data_sreg(0) & spi_data_in(spi_data_in'high downto 1);
-          data_sreg <= '0' & data_sreg(data_sreg'high downto 1);
-          shift_count <= shift_count - 1;
-          if (shift_count = 0) then
-            state <= SHIFT_OP;
+        when START_DELAY =>
+          delay_en <= '1';
+          if (delay_tick_p = '1') then
+            delay_en <= '0';
+            spi_start_p <= '1';
+            state <= SPI_TRANSFER;
           end if;
-          
-        when SHIFT_OP =>
-          spi_data_in <= reg_op_i & spi_data_in(spi_data_in'high downto 1);
-          shift_count <= to_unsigned(c_addr_bit_shifts, shift_count'length);
-          state <= SHIFT_ADDR;
-          
-        when SHIFT_ADDR =>
-          spi_data_in <= addr_sreg(0) & spi_data_in(spi_data_in'high downto 1);
-          addr_sreg <= ('0' & addr_sreg(addr_sreg'high downto 1));
-          shift_count <= shift_count - 1;
-          if (shift_count = 0) then
-            state <= SPI_START_TRANSFER;
-          end if;
-          
-        when SPI_START_TRANSFER =>
-          bits_to_send <= to_unsigned( (c_addr_op_width + f_siphra_reg_width(reg_addr_i)),
-                              bits_to_send'length);
-          spi_start_p <= '1';
-          spi_cs <= '1';
-          state <= SPI_TRANSFER;
-          
+        
         when SPI_TRANSFER =>
           spi_start_p <= '0';
           if (spi_ready = '1') then
+            state <= END_DELAY;
+          end if;
+          
+        when END_DELAY =>
+          delay_en <= '1';
+          if (delay_tick_p = '1') then
+            delay_en <= '0';
+            spi_cs <= '0';
             state <= IDLE;
           end if;
           
@@ -251,9 +238,29 @@ begin
       end case;
       
     end if;
-  end process p_fsm;
+  end process p_delay_fsm;
   
-  -- Assign FSM outputs
+  -- SPI data inputs
+  p_spi_data_in : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      spi_data_in <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (reg_op_start_p_i = '1') then
+        spi_data_in(c_siphra_num_packet_bits-1 downto
+                    c_siphra_num_packet_bits-g_reg_addr_bits) <= reg_addr_i;
+                    
+        spi_data_in(c_siphra_num_packet_bits-g_reg_addr_bits-1) <= reg_op_i;
+                    
+        spi_data_in(c_siphra_num_packet_bits-g_reg_addr_bits-2 downto
+                    g_reg_data_bits_max) <= (others => '0');
+                    
+        spi_data_in(g_reg_data_bits_max-1 downto 0) <= reg_data_i;
+      end if;
+    end if;
+  end process p_spi_data_in;
+  
+  -- Outputs of the siphra_ctrl module
   reg_op_ready_o <= reg_op_ready;
   
   p_reg_data_out : process (clk_i, rst_n_a_i) is
@@ -277,10 +284,10 @@ begin
       g_div_ratio_log2 => 7,
 
       -- data bits generic or from port?
-      g_data_bits_generic => false,
+      g_data_bits_generic => true,
 
       -- number of data bits per transfer; if from port, set to max. value expected on port
-      g_num_data_bits  => c_num_packet_bits
+      g_num_data_bits  => c_siphra_num_packet_bits
     )
     port map
     (
@@ -293,7 +300,7 @@ begin
       
       cpol_i     => '0',
       
-      data_len_i => std_logic_vector(bits_to_send),
+      data_len_i => (others => '0'),
       
       data_i     => spi_data_in,
       
