@@ -215,7 +215,7 @@ begin
     generic map
     (
       -- clock division ratio (SCLK = clk_sys_i / (2 ** g_div_ratio_log2).
-      g_div_ratio_log2 => 7,
+      g_div_ratio_log2 => 3,
 
       -- data bits generic or from port?
       g_data_bits_generic => true,
