@@ -83,16 +83,6 @@ end entity siphra_ctrl;
 architecture behav of siphra_ctrl is
 
   --============================================================================
-  -- Type declarations
-  --============================================================================
-  type t_state is (
-    IDLE,
-    START_DELAY,
-    SPI_TRANSFER,
-    END_DELAY
-  );
-  
-  --============================================================================
   -- Component declarations
   --============================================================================
   ------------------------------------------------------------------------------
@@ -156,11 +146,7 @@ architecture behav of siphra_ctrl is
   signal spi_data_in      : std_logic_vector(c_siphra_num_packet_bits-1 downto 0);
   signal spi_data_out     : std_logic_vector(c_siphra_num_packet_bits-1 downto 0);
   signal spi_ready        : std_logic;
-  signal spi_ready_d0     : std_logic;
-  signal spi_ready_p      : std_logic;
   signal reg_op_ready     : std_logic;
-  
-  signal state            : t_state;
   
 --==============================================================================
 --  architecture begin
@@ -170,82 +156,13 @@ begin
   --============================================================================
   -- IOs and links from external world to SPI master
   --============================================================================
-  -- Delays between CS assertion/de-assertion and start of SCLK
-  p_spi_start_delay : process (clk_i, rst_n_a_i) is
-  begin
-    if (rst_n_a_i = '0') then
-      delay_tick_p <= '0';
-      delay_count <= (others => '0');
-    elsif rising_edge(clk_i) then
-      delay_tick_p <= '0';
-      if (delay_en = '1') then
-        delay_count <= delay_count + 1;
-        if (delay_count = 499) then
-          delay_count <= (others => '0');
-          delay_tick_p <= '1';
-        end if;
-      end if;
-    end if;
-  end process p_spi_start_delay;
-
-  p_delay_fsm : process (clk_i, rst_n_a_i) is
-  begin
-    if (rst_n_a_i = '0') then
-      state <= IDLE;
-      spi_cs <= '0';
-      delay_en <= '0';
-      spi_start_p <= '0';
-      reg_op_ready <= '1';
-    elsif rising_edge(clk_i) then
-      
-      case state is
-      
-        when IDLE =>
-          spi_cs <= '0';
-          spi_start_p <= '0';
-          reg_op_ready <= '1';
-          if (reg_op_start_p_i = '1') then
-            state <= START_DELAY;
-            spi_cs <= '1';
-            reg_op_ready <= '0';
-          end if;
-          
-        when START_DELAY =>
-          delay_en <= '1';
-          if (delay_tick_p = '1') then
-            delay_en <= '0';
-            spi_start_p <= '1';
-            state <= SPI_TRANSFER;
-          end if;
-        
-        when SPI_TRANSFER =>
-          spi_start_p <= '0';
-          if (spi_ready = '1') then
-            state <= END_DELAY;
-          end if;
-          
-        when END_DELAY =>
-          delay_en <= '1';
-          if (delay_tick_p = '1') then
-            delay_en <= '0';
-            spi_cs <= '0';
-            state <= IDLE;
-          end if;
-          
-        when others =>
-          state <= IDLE;
-          
-      end case;
-      
-    end if;
-  end process p_delay_fsm;
-  
-  -- SPI data inputs
+  -- SPI data inputs and start pulse
   p_spi_data_in : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       spi_data_in <= (others => '0');
     elsif rising_edge(clk_i) then
+      -- Latch data on reg_op_start_p
       if (reg_op_start_p_i = '1') then
         spi_data_in(c_siphra_num_packet_bits-1 downto
                     c_siphra_num_packet_bits-g_reg_addr_bits) <= reg_addr_i;
@@ -257,18 +174,35 @@ begin
                     
         spi_data_in(g_reg_data_bits_max-1 downto 0) <= reg_data_i;
       end if;
+      
+      -- SPI start pulse one cycle after reg_op_start_p, to use right spi_data_in
+      spi_start_p <= reg_op_start_p_i;
     end if;
   end process p_spi_data_in;
   
+  -- nCS assertion and de-assertion
+  p_cs : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      spi_cs <= '0';
+    elsif rising_edge(clk_i) then
+      if (reg_op_start_p_i = '1') then
+        spi_cs <= '1';
+      elsif (spi_ready = '1') then
+        spi_cs <= '0';
+      end if;
+    end if;
+  end process p_cs;
+  
   -- Outputs of the siphra_ctrl module
-  reg_op_ready_o <= reg_op_ready;
+  reg_op_ready_o <= spi_ready;
   
   p_reg_data_out : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       reg_data_o <= (others => '0');
     elsif rising_edge(clk_i) then
-      if (reg_op_ready = '1') then
+      if (spi_ready = '1') then
         reg_data_o <= spi_data_out(g_reg_data_bits_max-1 downto 0);
       end if;
     end if;
