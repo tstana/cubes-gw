@@ -36,11 +36,6 @@ package siphra_pkg is
   -- Constant declarations
   --============================================================================
   ------------------------------------------------------------------------------
-  -- Number of bits in packet
-  ------------------------------------------------------------------------------
-  constant c_siphra_num_packet_bits : natural := 40;
-  
-  ------------------------------------------------------------------------------
   -- SIPHRA register addresses
   ------------------------------------------------------------------------------
   constant c_ctrl_ch_01         : std_logic_vector(7 downto 0) := x"00";
@@ -90,11 +85,6 @@ package siphra_pkg is
   function f_siphra_addr7bit(inp : std_logic_vector(7 downto 0))
                 return std_logic_vector;
   
-  -- Get number of bits in register based on address
-  -- Returns <number of bits - 1>
-  function f_siphra_reg_width(addr : std_logic_vector(6 downto 0))
-                return natural;
-  
 end package siphra_pkg;
 
 
@@ -115,122 +105,5 @@ package body siphra_pkg is
   begin
     return inp(6 downto 0);
   end function f_siphra_addr7bit;
-
-  -- Get number of bits in register based on address
-  -- Returns <number of bits - 1>
-  function f_siphra_reg_width(addr : std_logic_vector(6 downto 0))
-                return natural is
-  
-    variable addr8 : std_logic_vector(7 downto 0);
-    variable bits  : natural;
-    
-  begin
-  
-    addr8 := f_siphra_addr8bit(addr);
-    
-    case addr8 is
-      when c_ctrl_ch_01 =>
-        bits := 26;
-        
-      when c_ctrl_ch_02 =>
-        bits := 26;
-
-      when c_ctrl_ch_03 =>
-        bits := 26;
-
-      when c_ctrl_ch_04 =>
-        bits := 26;
-
-      when c_ctrl_ch_05 =>
-        bits := 26;
-        
-      when c_ctrl_ch_06 =>
-        bits := 26;
-
-      when c_ctrl_ch_07 =>
-        bits := 26;
-
-      when c_ctrl_ch_08 =>
-        bits := 26;
-
-      when c_ctrl_ch_09 =>
-        bits := 26;
-
-      when c_ctrl_ch_10 =>
-        bits := 26;
-
-      when c_ctrl_ch_11 =>
-        bits := 26;
-
-      when c_ctrl_ch_12 =>
-        bits := 26;
-
-      when c_ctrl_ch_13 =>
-        bits := 26;
-
-      when c_ctrl_ch_14 =>
-        bits := 26;
-
-      when c_ctrl_ch_15 =>
-        bits := 26;
-
-      when c_ctrl_ch_16 =>
-        bits := 26;
-
-      when c_ctrl_ch_sum =>
-        bits := 14;
-        
-      when c_channel_config =>
-        bits := 24;
-        
-      when c_channel_control =>
-        bits := 23;
-        
-      when c_adc_config =>
-        bits := 6;
-        
-      when c_cal_dac =>
-        bits := 8;
-        
-      when c_power_modules =>
-        bits := 18;
-        
-      when c_cal_ctrl =>
-        bits := 6;
-        
-      when c_readout_fixed_list =>
-        bits := 19;
-        
-      when c_readout_mode =>
-        bits := 15;
-        
-      when c_amux_ctrl =>
-        bits := 6;
-        
-      when c_sysclock_ctrl =>
-        bits := 2;
-        
-      when c_cmd_dcal =>
-        bits := 1;
-        
-      when c_cmd_readout =>
-        bits := 1;
-        
-      when c_trigger_latches =>
-        bits := 17;
-        
-      when c_adc_out =>
-        bits := 12;
-        
-      when c_parity_err_reg =>
-        bits := 28;
-        
-      when others =>
-        bits := 1;
-      
-    end case;
-    
-    return bits;
-  end function f_siphra_reg_width;
 
 end package body siphra_pkg;

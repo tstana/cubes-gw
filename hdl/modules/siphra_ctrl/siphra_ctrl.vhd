@@ -36,14 +36,6 @@ use work.siphra_pkg.all;
 
 
 entity siphra_ctrl is
-  generic
-  (
-    -- Number of address bits of a SIPHRA register
-    g_reg_addr_bits     : natural :=  7;
-
-    -- Max. number of bits existing for a SIPHRA register
-    g_reg_data_bits_max : natural := 26
-  );
   port
   (
     ---------------------------------------------------------------------------
@@ -62,9 +54,9 @@ entity siphra_ctrl is
     reg_op_i          : in  std_logic;
     
     -- Register address and data
-    reg_addr_i        : in  std_logic_vector(g_reg_addr_bits-1 downto 0);
-    reg_data_i        : in  std_logic_vector(g_reg_data_bits_max-1 downto 0);
-    reg_data_o        : out std_logic_vector(g_reg_data_bits_max-1 downto 0);
+    reg_addr_i        : in  std_logic_vector( 6 downto 0);
+    reg_data_i        : in  std_logic_vector(31 downto 0);
+    reg_data_o        : out std_logic_vector(31 downto 0);
     
     -- Register operation done
     reg_op_ready_o    : out std_logic;
@@ -138,13 +130,10 @@ architecture behav of siphra_ctrl is
   --============================================================================
   -- Signal declarations
   --============================================================================
-  signal delay_en         : std_logic;
-  signal delay_tick_p     : std_logic;
-  signal delay_count      : unsigned(8 downto 0);
   signal spi_start_p      : std_logic;
   signal spi_cs           : std_logic;
-  signal spi_data_in      : std_logic_vector(c_siphra_num_packet_bits-1 downto 0);
-  signal spi_data_out     : std_logic_vector(c_siphra_num_packet_bits-1 downto 0);
+  signal spi_data_in      : std_logic_vector(39 downto 0);
+  signal spi_data_out     : std_logic_vector(39 downto 0);
   signal spi_ready        : std_logic;
   signal reg_op_ready     : std_logic;
   
@@ -164,15 +153,9 @@ begin
     elsif rising_edge(clk_i) then
       -- Latch data on reg_op_start_p
       if (reg_op_start_p_i = '1') then
-        spi_data_in(c_siphra_num_packet_bits-1 downto
-                    c_siphra_num_packet_bits-g_reg_addr_bits) <= reg_addr_i;
-                    
-        spi_data_in(c_siphra_num_packet_bits-g_reg_addr_bits-1) <= reg_op_i;
-                    
-        spi_data_in(c_siphra_num_packet_bits-g_reg_addr_bits-2 downto
-                    g_reg_data_bits_max) <= (others => '0');
-                    
-        spi_data_in(g_reg_data_bits_max-1 downto 0) <= reg_data_i;
+        spi_data_in(39 downto 33) <= reg_addr_i;
+        spi_data_in(32) <= reg_op_i;
+        spi_data_in(31 downto 0) <= reg_data_i;
       end if;
       
       -- SPI start pulse one cycle after reg_op_start_p, to use right spi_data_in
@@ -203,7 +186,7 @@ begin
       reg_data_o <= (others => '0');
     elsif rising_edge(clk_i) then
       if (spi_ready = '1') then
-        reg_data_o <= spi_data_out(g_reg_data_bits_max-1 downto 0);
+        reg_data_o <= spi_data_out(31 downto 0);
       end if;
     end if;
   end process p_reg_data_out;
@@ -221,7 +204,7 @@ begin
       g_data_bits_generic => true,
 
       -- number of data bits per transfer; if from port, set to max. value expected on port
-      g_num_data_bits  => c_siphra_num_packet_bits
+      g_num_data_bits  => 40
     )
     port map
     (

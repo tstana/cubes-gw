@@ -54,10 +54,6 @@ architecture behav of wb_siphra_ctrl is
   --============================================================================
   -- Constant declarations
   --============================================================================
-  -- SIPHRA bit widths
-  constant c_num_addr_bits      : natural :=  7;
-  constant c_num_data_bits      : natural := 26;
-  
   -- Addresses
   constant c_siphra_datar_ofs   : std_logic_vector(1 downto 0) := "00";
   constant c_siphra_csr_ofs     : std_logic_vector(1 downto 0) := "01";
@@ -66,14 +62,6 @@ architecture behav of wb_siphra_ctrl is
   -- Component declarations
   --============================================================================
   component siphra_ctrl is
-    generic
-    (
-      -- Number of address bits of a SIPHRA register
-      g_reg_addr_bits     : natural :=  7;
-
-      -- Max. number of bits existing for a SIPHRA register
-      g_reg_data_bits_max : natural := 26
-    );
     port
     (
       ---------------------------------------------------------------------------
@@ -92,9 +80,9 @@ architecture behav of wb_siphra_ctrl is
       reg_op_i          : in  std_logic;
       
       -- Register address and data
-      reg_addr_i        : in  std_logic_vector(g_reg_addr_bits-1 downto 0);
-      reg_data_i        : in  std_logic_vector(g_reg_data_bits_max-1 downto 0);
-      reg_data_o        : out std_logic_vector(g_reg_data_bits_max-1 downto 0);
+      reg_addr_i        : in  std_logic_vector( 6 downto 0);
+      reg_data_i        : in  std_logic_vector(31 downto 0);
+      reg_data_o        : out std_logic_vector(31 downto 0);
       
       -- Register operation done
       reg_op_ready_o    : out std_logic;
@@ -128,9 +116,9 @@ architecture behav of wb_siphra_ctrl is
   signal reg_op           : std_logic;
   signal reg_op_start_p   : std_logic;
   signal reg_op_ready     : std_logic;
-  signal reg_addr         : std_logic_vector(c_num_addr_bits-1 downto 0);
-  signal reg_data_in      : std_logic_vector(c_num_data_bits-1 downto 0);
-  signal reg_data_out     : std_logic_vector(c_num_data_bits-1 downto 0);
+  signal reg_addr         : std_logic_vector( 6 downto 0);
+  signal reg_data_in      : std_logic_vector(31 downto 0);
+  signal reg_data_out     : std_logic_vector(31 downto 0);
   
 --==============================================================================
 --  architecture begin
@@ -200,8 +188,7 @@ begin
   -- Wishbone-mapped registers
   --============================================================================
   -- DATAR
-  datar(c_num_data_bits-1 downto 0) <= reg_data_out;
-  datar(31 downto c_num_data_bits)  <= (others => '0');
+  datar <= reg_data_out;
   
   p_datar : process (clk_i, rst_n_a_i) is
   begin
@@ -209,7 +196,7 @@ begin
       reg_data_in  <= (others => '0');
     elsif rising_edge(clk_i) then
       if (datar_write_p = '1') then
-        reg_data_in <= wb_dat_in(c_num_data_bits-1 downto 0);
+        reg_data_in <= wb_dat_in;
       end if;
     end if;
   end process p_datar;
@@ -250,14 +237,6 @@ begin
   
   -- Instantiate core
   cmp_siphra_ctrl : siphra_ctrl
-    generic map
-    (
-      -- Number of address bits of a SIPHRA register
-      g_reg_addr_bits     => c_num_addr_bits,
-
-      -- Max. number of bits existing for a SIPHRA register
-      g_reg_data_bits_max => c_num_data_bits
-    )
     port map
     (
       ---------------------------------------------------------------------------
