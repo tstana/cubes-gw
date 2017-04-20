@@ -267,7 +267,6 @@ begin
           
         when DECODE_MSG_ID =>
           if (i2c_r_done_p = '1') then
-            bytes_left <= to_unsigned(3, bytes_left'length);
             if (i2c_rx_byte = x"11") then
               wb_adr <= x"00000000";
               bytes_left <= to_unsigned(47, bytes_left'length);
@@ -278,14 +277,20 @@ begin
               state <= WB_CYCLE;
             elsif (i2c_rx_byte = x"91") then
               wb_adr <= x"00000014";
+              bytes_left <= to_unsigned(3, bytes_left'length);
               state <= RECEIVE_DATA;
             elsif (i2c_rx_byte = x"92") then
               wb_adr <= x"00000014";
+              bytes_left <= to_unsigned(3, bytes_left'length);
               state <= WB_CYCLE;
             elsif (i2c_rx_byte = x"93") then
               wb_adr <= x"00000020";
               bytes_left <= to_unsigned(7, bytes_left'length);
               state <= RECEIVE_DATA;
+            elsif (i2c_rx_byte = x"94") then
+              wb_adr <= x"00000020";
+              bytes_left <= to_unsigned(7, bytes_left'length);
+              state <= WB_CYCLE;
             else
               state <= UART_WRAPPER_STOP;
               -- state <= IDLE;
