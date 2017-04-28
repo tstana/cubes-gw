@@ -289,7 +289,7 @@ begin
               state <= RECEIVE_DATA;
             elsif (i2c_rx_byte = x"94") then
               wb_adr <= x"00000020";
-              bytes_left <= to_unsigned(7, bytes_left'length);
+              bytes_left <= to_unsigned(3, bytes_left'length);
               state <= WB_CYCLE;
             else
               state <= UART_WRAPPER_STOP;
