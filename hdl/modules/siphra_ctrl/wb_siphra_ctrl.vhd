@@ -35,16 +35,18 @@ use work.wishbone_pkg.all;
 entity wb_siphra_ctrl is
   port
   (
-    clk_i       : in  std_logic;
-    rst_n_a_i   : in  std_logic;
+    clk_i           : in  std_logic;
+    rst_n_a_i       : in  std_logic;
     
-    spi_cs_n_o  : out std_logic;
-    spi_sclk_o  : out std_logic;
-    spi_mosi_o  : out std_logic;
-    spi_miso_i  : in  std_logic;
+    spi_cs_n_o      : out std_logic;
+    spi_sclk_o      : out std_logic;
+    spi_mosi_o      : out std_logic;
+    spi_miso_i      : in  std_logic;
     
-    wbs_i       : in  t_wishbone_slave_in;
-    wbs_o       : out t_wishbone_slave_out
+    siphra_sysclk_o : out  std_logic;
+    
+    wbs_i           : in  t_wishbone_slave_in;
+    wbs_o           : out t_wishbone_slave_out
   );
 end entity wb_siphra_ctrl;
 
@@ -87,6 +89,11 @@ architecture behav of wb_siphra_ctrl is
       -- Register operation done
       reg_op_ready_o    : out std_logic;
       
+      ---------------------------------------------------------------------------
+      -- SIPHRA SYSCLK port
+      ---------------------------------------------------------------------------
+      sysclk_o          : out std_logic;
+
       ---------------------------------------------------------------------------
       -- SPI ports
       ---------------------------------------------------------------------------
@@ -262,6 +269,11 @@ begin
       -- Register operation done
       reg_op_ready_o    => reg_op_ready,
       
+      ---------------------------------------------------------------------------
+      -- SIPHRA SYSCLK port
+      ---------------------------------------------------------------------------
+      sysclk_o          => siphra_sysclk_o,
+
       ---------------------------------------------------------------------------
       -- SPI ports
       ---------------------------------------------------------------------------

@@ -62,6 +62,11 @@ entity siphra_ctrl is
     reg_op_ready_o    : out std_logic;
     
     ---------------------------------------------------------------------------
+    -- SIPHRA SYSCLK port
+    ---------------------------------------------------------------------------
+    sysclk_o          : out std_logic;
+    
+    ---------------------------------------------------------------------------
     -- SPI ports
     ---------------------------------------------------------------------------
     spi_cs_n_o        : out std_logic;
@@ -136,6 +141,9 @@ architecture behav of siphra_ctrl is
   signal spi_data_out     : std_logic_vector(39 downto 0);
   signal spi_ready        : std_logic;
   signal reg_op_ready     : std_logic;
+  
+  signal sysclk           : std_logic;
+  signal sysclk_count     : unsigned(3 downto 0);
   
 --==============================================================================
 --  architecture begin
@@ -230,6 +238,25 @@ begin
       spi_mosi_o => spi_mosi_o,
       spi_miso_i => spi_miso_i
     );
+
+  --============================================================================
+  -- SYSCLk generation
+  --============================================================================
+  p_sysclk : process (clk_i, rst_n_a_i)
+  begin
+    if (rst_n_a_i = '0') then
+      sysclk <= '0';
+      sysclk_count <= (others => '0');
+    elsif rising_edge(clk_i) then
+      sysclk_count <= sysclk_count + 1;
+      if (sysclk_count = 9) then
+        sysclk <= not sysclk;
+        sysclk_count <= (others => '0');
+      end if;
+    end if;
+  end process p_sysclk;
+  
+  sysclk_o <= sysclk;
 
 end architecture behav;
 --==============================================================================
