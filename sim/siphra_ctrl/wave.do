@@ -2,25 +2,29 @@ onerror {resume}
 quietly WaveActivateNextPane {} 0
 add wave -noupdate /testbench/clk_100meg
 add wave -noupdate /testbench/rst_n
+add wave -noupdate /testbench/siphra_sysclk
+add wave -noupdate /testbench/siphra_txd
+add wave -noupdate -radix hexadecimal /testbench/siphra_adc_delay
+add wave -noupdate -radix hexadecimal /testbench/siphra_adc_value
+add wave -noupdate -radix hexadecimal /testbench/siphra_adc_chan
+add wave -noupdate /testbench/siphra_adc_trig_type
+add wave -noupdate /testbench/siphra_adc_tf
+add wave -noupdate /testbench/siphra_adc_shifting
+add wave -noupdate /testbench/siphra_adc_sreg
+add wave -noupdate -radix hexadecimal /testbench/siphra_adc_sreg_count
+add wave -noupdate -divider {Expected output}
+add wave -noupdate -radix hexadecimal /testbench/adc_value
+add wave -noupdate -radix hexadecimal /testbench/adc_chan
+add wave -noupdate /testbench/adc_trig_type
+add wave -noupdate /testbench/adc_valid
 add wave -noupdate -divider DUT
-add wave -noupdate /testbench/DUT/reg_op_start_p_i
-add wave -noupdate /testbench/DUT/reg_op_i
-add wave -noupdate -radix binary /testbench/DUT/reg_addr_i
-add wave -noupdate -radix binary /testbench/DUT/reg_data_i
-add wave -noupdate /testbench/DUT/spi_data_in
-add wave -noupdate /testbench/DUT/spi_cs_n_o
-add wave -noupdate /testbench/DUT/spi_sclk_o
-add wave -noupdate /testbench/DUT/spi_mosi_o
-add wave -noupdate /testbench/DUT/spi_miso_i
-add wave -noupdate /testbench/DUT/spi_cs
-add wave -noupdate /testbench/DUT/spi_ready
-add wave -noupdate /testbench/DUT/reg_op_ready_o
-add wave -noupdate /testbench/DUT/reg_data_o
-add wave -noupdate /testbench/DUT/delay_en
-add wave -noupdate /testbench/DUT/delay_tick_p
-add wave -noupdate /testbench/DUT/delay_count
+add wave -noupdate /testbench/DUT/txd_i
+add wave -noupdate -radix hexadecimal /testbench/DUT/adc_value_o
+add wave -noupdate -radix hexadecimal /testbench/DUT/adc_chan_o
+add wave -noupdate /testbench/DUT/adc_trig_type_o
+add wave -noupdate /testbench/DUT/adc_valid_o
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {3785148 ps} 0}
+WaveRestoreCursors {{Cursor 1} {20742610 ps} 0}
 quietly wave cursor active 1
 configure wave -namecolwidth 269
 configure wave -valuecolwidth 216
@@ -36,4 +40,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits us
 update
-WaveRestoreZoom {0 ps} {105 us}
+WaveRestoreZoom {0 ps} {210 us}
