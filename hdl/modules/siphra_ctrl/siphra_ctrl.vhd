@@ -67,6 +67,15 @@ entity siphra_ctrl is
     sysclk_o          : out std_logic;
     
     ---------------------------------------------------------------------------
+    -- SIPHRA ADC readout ports
+    ---------------------------------------------------------------------------
+    txd_i             : in  std_logic;
+    adc_value_o       : out std_logic_vector(11 downto 0);
+    adc_chan_o        : out std_logic_vector( 4 downto 0);
+    adc_trig_type_o   : out std_logic_vector( 1 downto 0);
+    adc_valid_o       : out std_logic;
+    
+    ---------------------------------------------------------------------------
     -- SPI ports
     ---------------------------------------------------------------------------
     spi_cs_n_o        : out std_logic;
@@ -144,6 +153,12 @@ architecture behav of siphra_ctrl is
   
   signal sysclk           : std_logic;
   signal sysclk_count     : unsigned(3 downto 0);
+  signal sysclk_d0        : std_logic;
+  signal sysclk_fedge_p   : std_logic;
+  
+  signal adc_sreg         : std_logic_vector(21 downto 0);
+  signal adc_sreg_en      : std_logic;
+  signal adc_bit_count    : unsigned(4 downto 0);
   
 --==============================================================================
 --  architecture begin
@@ -258,6 +273,49 @@ begin
   
   sysclk_o <= sysclk;
 
+  --============================================================================
+  -- SIPHRA ADC readout
+  --============================================================================
+  p_sysclk_fedge : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      sysclk_d0 <= '0';
+      sysclk_fedge_p <= '0';
+    elsif rising_edge(clk_i) then
+      sysclk_d0 <= sysclk;
+      sysclk_fedge_p <= sysclk_d0 and (not sysclk);
+    end if;
+  end process p_sysclk_fedge;
+      
+  p_adc_sreg : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      adc_sreg <= (others => '0');
+      adc_sreg_en <= '0';
+      adc_bit_count <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (sysclk_fedge_p = '1') then
+        if (adc_sreg_en = '0') then
+          if (txd_i = '1') then
+            adc_sreg_en <= '1';
+          end if;
+        else
+          adc_bit_count <= adc_bit_count + 1;
+          adc_sreg <= adc_sreg(adc_sreg'left-1 downto 0) & txd_i;
+          if (adc_bit_count = 19) then
+            adc_bit_count <= (others => '0');
+            adc_sreg_en <= '0';
+          end if;
+        end if;
+      end if;
+    end if;
+  end process p_adc_sreg;
+  
+  adc_valid_o <= not adc_sreg_en;
+  adc_value_o <= adc_sreg(11 downto 0);
+  adc_trig_type_o <= adc_sreg(13 downto 12);
+  adc_chan_o <= adc_sreg(18 downto 14);
+  
 end architecture behav;
 --==============================================================================
 --  architecture end

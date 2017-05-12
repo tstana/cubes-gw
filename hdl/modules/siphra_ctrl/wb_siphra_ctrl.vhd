@@ -43,7 +43,8 @@ entity wb_siphra_ctrl is
     spi_mosi_o      : out std_logic;
     spi_miso_i      : in  std_logic;
     
-    siphra_sysclk_o : out  std_logic;
+    siphra_sysclk_o : out std_logic;
+    siphra_txd_i    : in  std_logic;
     
     wbs_i           : in  t_wishbone_slave_in;
     wbs_o           : out t_wishbone_slave_out
@@ -59,6 +60,7 @@ architecture behav of wb_siphra_ctrl is
   -- Addresses
   constant c_siphra_datar_ofs   : std_logic_vector(1 downto 0) := "00";
   constant c_siphra_csr_ofs     : std_logic_vector(1 downto 0) := "01";
+  constant c_siphra_adcr_ofs    : std_logic_vector(1 downto 0) := "10";
 
   --============================================================================
   -- Component declarations
@@ -95,6 +97,15 @@ architecture behav of wb_siphra_ctrl is
       sysclk_o          : out std_logic;
 
       ---------------------------------------------------------------------------
+      -- SIPHRA ADC readout ports
+      ---------------------------------------------------------------------------
+      txd_i             : in  std_logic;
+      adc_value_o       : out std_logic_vector(11 downto 0);
+      adc_chan_o        : out std_logic_vector( 4 downto 0);
+      adc_trig_type_o   : out std_logic_vector( 1 downto 0);
+      adc_valid_o       : out std_logic;
+
+      ---------------------------------------------------------------------------
       -- SPI ports
       ---------------------------------------------------------------------------
       spi_cs_n_o        : out std_logic;
@@ -119,6 +130,7 @@ architecture behav of wb_siphra_ctrl is
   signal csr_write_p      : std_logic;
   signal datar            : std_logic_vector(c_wishbone_data_width-1 downto 0);
   signal datar_write_p    : std_logic;
+  signal adcr             : std_logic_vector(c_wishbone_data_width-1 downto 0);
   
   signal reg_op           : std_logic;
   signal reg_op_start_p   : std_logic;
@@ -126,6 +138,11 @@ architecture behav of wb_siphra_ctrl is
   signal reg_addr         : std_logic_vector( 6 downto 0);
   signal reg_data_in      : std_logic_vector(31 downto 0);
   signal reg_data_out     : std_logic_vector(31 downto 0);
+  
+  signal adc_value        : std_logic_vector(11 downto 0);
+  signal adc_trig_type    : std_logic_vector( 1 downto 0);
+  signal adc_chan         : std_logic_vector( 4 downto 0);
+  signal adc_valid        : std_logic;
   
 --==============================================================================
 --  architecture begin
@@ -177,6 +194,8 @@ begin
               wb_dat_out <= datar;
             when c_siphra_csr_ofs =>
               wb_dat_out <= csr;
+            when c_siphra_adcr_ofs =>
+              wb_dat_out <= adcr;
             when others =>
               wb_dat_out <= (others => '0');
           end case;
@@ -228,6 +247,21 @@ begin
     end if;
   end process p_csr;
   
+  -- ADCR
+  p_adcr : process(clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      adcr <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (adc_valid = '1') then
+        adcr(11 downto  0) <= adc_value;
+        adcr(13 downto 12) <= adc_trig_type;
+        adcr(18 downto 14) <= adc_chan;
+        adcr(c_wishbone_data_width-1 downto 17) <= (others => '0');
+      end if;
+    end if;
+  end process p_adcr;
+  
   --============================================================================
   -- SIPHRA controller core
   --============================================================================
@@ -273,6 +307,15 @@ begin
       -- SIPHRA SYSCLK port
       ---------------------------------------------------------------------------
       sysclk_o          => siphra_sysclk_o,
+
+      ---------------------------------------------------------------------------
+      -- SIPHRA ADC readout ports
+      ---------------------------------------------------------------------------
+      txd_i             => siphra_txd_i,
+      adc_value_o       => adc_value,
+      adc_chan_o        => adc_chan,
+      adc_trig_type_o   => adc_trig_type,
+      adc_valid_o       => adc_valid,
 
       ---------------------------------------------------------------------------
       -- SPI ports

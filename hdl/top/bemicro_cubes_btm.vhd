@@ -62,6 +62,7 @@ entity bemicro_cubes_btm is
     spi_miso_i        : in  std_logic;
     
     siphra_sysclk_o   : out std_logic;
+    siphra_txd_i      : in  std_logic;
     
     dbg_cs_n_o        : out std_logic;
     dbg_sclk_o        : out std_logic;
@@ -245,6 +246,7 @@ architecture arch of bemicro_cubes_btm is
       spi_miso_i      : in  std_logic;
       
       siphra_sysclk_o : out std_logic;
+      siphra_txd_i    : in  std_logic;
       
       wbs_i           : in  t_wishbone_slave_in;
       wbs_o           : out t_wishbone_slave_out
@@ -430,6 +432,7 @@ begin
       spi_miso_i      => spi_miso,
       
       siphra_sysclk_o => siphra_sysclk_o,
+      siphra_txd_i    => siphra_txd_i,
       
       wbs_i           => xwb_masters_out(c_siphra_ctrl_idx),
       wbs_o           => xwb_masters_in(c_siphra_ctrl_idx)
