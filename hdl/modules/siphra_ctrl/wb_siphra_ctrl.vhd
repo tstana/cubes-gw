@@ -255,8 +255,9 @@ begin
     elsif rising_edge(clk_i) then
       if (adc_valid = '1') then
         adcr(11 downto  0) <= adc_value;
-        adcr(13 downto 12) <= adc_trig_type;
-        adcr(18 downto 14) <= adc_chan;
+        adcr(15 downto 12) <= (others => '0');
+        adcr(20 downto 16) <= adc_chan;
+        adcr(22 downto 21) <= adc_trig_type;
         adcr(c_wishbone_data_width-1 downto 17) <= (others => '0');
       end if;
     end if;
