@@ -291,6 +291,10 @@ begin
               wb_adr <= x"00000020";
               bytes_left <= to_unsigned(3, bytes_left'length);
               state <= WB_CYCLE;
+            elsif (i2c_rx_byte = x"95") then
+              wb_adr <= x"00000028";
+              bytes_left <= to_unsigned(3, bytes_left'length);
+              state <= WB_CYCLE;
             else
               state <= UART_WRAPPER_STOP;
               -- state <= IDLE;
