@@ -1,0 +1,14 @@
+- FPGA sending in little endian order (?)
+- implement MSP
+- implement command as type
+- test command
+- f_decode_command
+- (?) CMD_READOUT reg setting from UI keeps from read to read -- FPGA or ASIC?
+- SPI frequency selectable by register
+-- intervention needed on spi_master
+-- take this opportunity to make spi_master simpler
+-- implement CPOL/CPHA as well (?)
+- SIPHRA_SYSCLK frequency selectable by register
+- siphra_load module
+- second I2C addr+r/w in proto
+- commit
