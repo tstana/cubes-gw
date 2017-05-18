@@ -131,6 +131,7 @@ architecture behav of wb_siphra_ctrl is
   signal datar            : std_logic_vector(c_wishbone_data_width-1 downto 0);
   signal datar_write_p    : std_logic;
   signal adcr             : std_logic_vector(c_wishbone_data_width-1 downto 0);
+  signal adcr_read_p      : std_logic;
   
   signal reg_op           : std_logic;
   signal reg_op_start_p   : std_logic;
@@ -143,6 +144,8 @@ architecture behav of wb_siphra_ctrl is
   signal adc_trig_type    : std_logic_vector( 1 downto 0);
   signal adc_chan         : std_logic_vector( 4 downto 0);
   signal adc_valid        : std_logic;
+  signal adc_valid_d0     : std_logic;
+  signal adc_valid_p      : std_logic;
   
 --==============================================================================
 --  architecture begin
@@ -175,10 +178,12 @@ begin
       wb_dat_out <= (others => '0');
       csr_write_p <= '0';
       datar_write_p <= '0';
+      adcr_read_p <= '0';
       
     elsif rising_edge(clk_i) then
       if (wb_cyc = '1') and (wb_stb = '1') then
         wb_ack <= '1';
+        adcr_read_p <= '0';
         if (wb_we = '1') then
           case wb_adr(3 downto 2) is
             when c_siphra_datar_ofs =>
@@ -196,6 +201,7 @@ begin
               wb_dat_out <= csr;
             when c_siphra_adcr_ofs =>
               wb_dat_out <= adcr;
+              adcr_read_p <= '1';
             when others =>
               wb_dat_out <= (others => '0');
           end case;
@@ -251,14 +257,25 @@ begin
   p_adcr : process(clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
+      adc_valid_d0 <= '0';
+      adc_valid_p <= '0';
       adcr <= (others => '0');
     elsif rising_edge(clk_i) then
-      if (adc_valid = '1') then
+    
+      adc_valid_d0 <= adc_valid;
+      adc_valid_p <= (not adc_valid_d0) and adc_valid;
+      
+      if (adc_valid_p = '1') then
         adcr(11 downto  0) <= adc_value;
         adcr(15 downto 12) <= (others => '0');
         adcr(20 downto 16) <= adc_chan;
         adcr(22 downto 21) <= adc_trig_type;
-        adcr(c_wishbone_data_width-1 downto 17) <= (others => '0');
+        adcr(30 downto 17) <= (others => '0');
+        adcr(31) <= '1';
+      end if;
+      
+      if (adcr_read_p = '1') then
+        adcr(31) <= '0';
       end if;
     end if;
   end process p_adcr;
