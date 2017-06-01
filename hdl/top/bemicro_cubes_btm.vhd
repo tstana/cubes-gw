@@ -106,12 +106,12 @@ architecture arch of bemicro_cubes_btm is
   -- Slave base addresses
   constant c_id_regs_addr     : t_wishbone_address := x"00000000";
   constant c_led_ctrl_addr    : t_wishbone_address := x"00000010";
-  constant c_siphra_ctrl_addr : t_wishbone_address := x"00000020";
+  constant c_siphra_ctrl_addr : t_wishbone_address := x"00000200";
   
   -- Slave xwb_crossbar masks
   constant c_id_regs_mask     : t_wishbone_address := x"fffffff0";
   constant c_led_ctrl_mask    : t_wishbone_address := x"fffffff0";
-  constant c_siphra_ctrl_mask : t_wishbone_address := x"fffffff0";
+  constant c_siphra_ctrl_mask : t_wishbone_address := x"fffffe00";
   
   ------------------------------------------------------------------------------
   -- Wishbone address layout
