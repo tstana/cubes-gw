@@ -1,3 +1,4 @@
+- Add CHANxxVALR
 - FPGA sending in little endian order (?)
 - implement MSP
 - implement command as type
