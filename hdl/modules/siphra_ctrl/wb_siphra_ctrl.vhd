@@ -55,13 +55,35 @@ end entity wb_siphra_ctrl;
 architecture behav of wb_siphra_ctrl is
 
   --============================================================================
+  -- Type declarations
+  --============================================================================
+  type t_chanrater is array (0 to 15) of std_logic_vector(31 downto 0);
+  type t_chan_rate_counter is array (0 to 15) of unsigned(15 downto 0);
+  
+  --============================================================================
   -- Constant declarations
   --============================================================================
   -- Addresses
-  constant c_siphra_datar_ofs   : std_logic_vector(1 downto 0) := "00";
-  constant c_siphra_csr_ofs     : std_logic_vector(1 downto 0) := "01";
-  constant c_siphra_adcr_ofs    : std_logic_vector(1 downto 0) := "10";
-
+  constant c_siphra_ch01rater_ofs : std_logic_vector(8 downto 0) := '0' & x"00";
+  constant c_siphra_ch02rater_ofs : std_logic_vector(8 downto 0) := '0' & x"10";
+  constant c_siphra_ch03rater_ofs : std_logic_vector(8 downto 0) := '0' & x"20";
+  constant c_siphra_ch04rater_ofs : std_logic_vector(8 downto 0) := '0' & x"30";
+  constant c_siphra_ch05rater_ofs : std_logic_vector(8 downto 0) := '0' & x"40";
+  constant c_siphra_ch06rater_ofs : std_logic_vector(8 downto 0) := '0' & x"50";
+  constant c_siphra_ch07rater_ofs : std_logic_vector(8 downto 0) := '0' & x"60";
+  constant c_siphra_ch08rater_ofs : std_logic_vector(8 downto 0) := '0' & x"70";
+  constant c_siphra_ch09rater_ofs : std_logic_vector(8 downto 0) := '0' & x"80";
+  constant c_siphra_ch10rater_ofs : std_logic_vector(8 downto 0) := '0' & x"90";
+  constant c_siphra_ch11rater_ofs : std_logic_vector(8 downto 0) := '0' & x"a0";
+  constant c_siphra_ch12rater_ofs : std_logic_vector(8 downto 0) := '0' & x"b0";
+  constant c_siphra_ch13rater_ofs : std_logic_vector(8 downto 0) := '0' & x"c0";
+  constant c_siphra_ch14rater_ofs : std_logic_vector(8 downto 0) := '0' & x"d0";
+  constant c_siphra_ch15rater_ofs : std_logic_vector(8 downto 0) := '0' & x"e0";
+  constant c_siphra_ch16rater_ofs : std_logic_vector(8 downto 0) := '0' & x"f0";
+  constant c_siphra_datar_ofs     : std_logic_vector(8 downto 0) := '1' & x"00";
+  constant c_siphra_csr_ofs       : std_logic_vector(8 downto 0) := '1' & x"04";
+  constant c_siphra_adcr_ofs      : std_logic_vector(8 downto 0) := '1' & x"08";
+  
   --============================================================================
   -- Component declarations
   --============================================================================
@@ -147,6 +169,13 @@ architecture behav of wb_siphra_ctrl is
   signal adc_valid_d0     : std_logic;
   signal adc_valid_p      : std_logic;
   
+  signal chanrater_read_p   : std_logic_vector(15 downto 0);
+  signal chanrater          : t_chanrater;
+  signal chan_rate_counter  : t_chan_rate_counter;
+  
+  signal counter_100ms      : unsigned(23 downto 0);  
+  signal tick_100ms_p       : std_logic;
+  
 --==============================================================================
 --  architecture begin
 --==============================================================================
@@ -179,13 +208,15 @@ begin
       csr_write_p <= '0';
       datar_write_p <= '0';
       adcr_read_p <= '0';
+      chanrater_read_p <= (others => '0');
       
     elsif rising_edge(clk_i) then
+      adcr_read_p <= '0';
+      chanrater_read_p <= (others => '0');
       if (wb_cyc = '1') and (wb_stb = '1') then
         wb_ack <= '1';
-        adcr_read_p <= '0';
         if (wb_we = '1') then
-          case wb_adr(3 downto 2) is
+          case wb_adr(8 downto 0) is
             when c_siphra_datar_ofs =>
               datar_write_p <= '1';
             when c_siphra_csr_ofs =>
@@ -194,7 +225,7 @@ begin
               null;
           end case;
         else
-          case wb_adr(3 downto 2) is
+          case wb_adr(8 downto 0) is
             when c_siphra_datar_ofs =>
               wb_dat_out <= datar;
             when c_siphra_csr_ofs =>
@@ -202,6 +233,54 @@ begin
             when c_siphra_adcr_ofs =>
               wb_dat_out <= adcr;
               adcr_read_p <= '1';
+            when c_siphra_ch01rater_ofs =>
+              wb_dat_out <= chanrater(0);
+              chanrater_read_p(0) <= '1';
+            when c_siphra_ch02rater_ofs =>
+              wb_dat_out <= chanrater(1);
+              chanrater_read_p(1) <= '1';
+            when c_siphra_ch03rater_ofs =>
+              wb_dat_out <= chanrater(2);
+              chanrater_read_p(2) <= '1';
+            when c_siphra_ch04rater_ofs =>
+              wb_dat_out <= chanrater(3);
+              chanrater_read_p(3) <= '1';
+            when c_siphra_ch05rater_ofs =>
+              wb_dat_out <= chanrater(4);
+              chanrater_read_p(4) <= '1';
+            when c_siphra_ch06rater_ofs =>
+              wb_dat_out <= chanrater(5);
+              chanrater_read_p(5) <= '1';
+            when c_siphra_ch07rater_ofs =>
+              wb_dat_out <= chanrater(6);
+              chanrater_read_p(6) <= '1';
+            when c_siphra_ch08rater_ofs =>
+              wb_dat_out <= chanrater(7);
+              chanrater_read_p(7) <= '1';
+            when c_siphra_ch09rater_ofs =>
+              wb_dat_out <= chanrater(8);
+              chanrater_read_p(8) <= '1';
+            when c_siphra_ch10rater_ofs =>
+              wb_dat_out <= chanrater(9);
+              chanrater_read_p(9) <= '1';
+            when c_siphra_ch11rater_ofs =>
+              wb_dat_out <= chanrater(10);
+              chanrater_read_p(10) <= '1';
+            when c_siphra_ch12rater_ofs =>
+              wb_dat_out <= chanrater(11);
+              chanrater_read_p(11) <= '1';
+            when c_siphra_ch13rater_ofs =>
+              wb_dat_out <= chanrater(12);
+              chanrater_read_p(12) <= '1';
+            when c_siphra_ch14rater_ofs =>
+              wb_dat_out <= chanrater(13);
+              chanrater_read_p(13) <= '1';
+            when c_siphra_ch15rater_ofs =>
+              wb_dat_out <= chanrater(14);
+              chanrater_read_p(14) <= '1';
+            when c_siphra_ch16rater_ofs =>
+              wb_dat_out <= chanrater(15);
+              chanrater_read_p(15) <= '1';
             when others =>
               wb_dat_out <= (others => '0');
           end case;
@@ -280,6 +359,22 @@ begin
     end if;
   end process p_adcr;
   
+  -- CHxxRATER
+gen_chanrater : for i in 0 to 15 generate
+  p_chanrater : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      chanrater(i) <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (chanrater_read_p(i) = '1') then
+        chanrater(i) <= (others => '0');
+      elsif (tick_100ms_p = '1') then
+        chanrater(i) <= x"0000" & std_logic_vector(chan_rate_counter(i));
+      end if;
+    end if;
+  end process;
+end generate;
+  
   --============================================================================
   -- SIPHRA controller core
   --============================================================================
@@ -344,7 +439,39 @@ begin
       spi_miso_i        => spi_miso_i
     );
 
-
+  --============================================================================
+  -- Channel rate counters
+  --============================================================================
+  p_counter_100ms : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      counter_100ms <= (others => '0');
+      tick_100ms_p <= '0';
+    elsif rising_edge(clk_i) then
+      counter_100ms <= counter_100ms + 1;
+      tick_100ms_p <= '0';
+      if (counter_100ms = 9_999_999) then
+        counter_100ms <= (others => '0');
+        tick_100ms_p <= '1';
+      end if;
+    end if;
+  end process;
+  
+gen_rate_counters : for i in 0 to 15 generate
+  p_chan_rate_counter : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      chan_rate_counter(i) <= (others => '0');
+    elsif rising_edge(clk_i) then
+      if (chanrater_read_p(i) = '1') then
+        chan_rate_counter(i) <= (others => '0');
+      elsif (adc_valid_p = '1') and (to_integer(unsigned(adc_chan)) = i) then
+        chan_rate_counter(i) <= chan_rate_counter(i) + 1;
+      end if;
+    end if;
+  end process;
+end generate;
+  
 end architecture behav;
 --==============================================================================
 --  architecture end
