@@ -295,6 +295,13 @@ begin
               wb_adr <= x"00000308";
               bytes_left <= to_unsigned(3, bytes_left'length);
               state <= WB_CYCLE;
+            elsif (i2c_rx_byte(7 downto 3) = x"a") then
+              wb_adr(31 downto 12) <= (others => '0');
+              wb_adr(11 downto  8) <= x"2";
+              wb_adr( 7 downto  4) <= unsigned(i2c_rx_byte(3 downto 0));
+              wb_adr( 3 downto  0) <= (others => '0');
+              bytes_left <= to_unsigned(3, bytes_left'length);
+              state <= WB_CYCLE;
             else
               state <= UART_WRAPPER_STOP;
               -- state <= IDLE;
