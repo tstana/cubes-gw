@@ -269,7 +269,7 @@ begin
           if (i2c_r_done_p = '1') then
             if (i2c_rx_byte = x"11") then
               wb_adr <= x"00000000";
-              bytes_left <= to_unsigned(47, bytes_left'length);
+              bytes_left <= to_unsigned(775, bytes_left'length);
               state <= WB_CYCLE;
             elsif (i2c_rx_byte = x"90") then
               wb_adr <= x"00000000";
