@@ -463,7 +463,7 @@ gen_rate_counters : for i in 0 to 15 generate
     if (rst_n_a_i = '0') then
       chan_rate_counter(i) <= (others => '0');
     elsif rising_edge(clk_i) then
-      if (chanrater_read_p(i) = '1') or (tick_1sec_p = '1') then
+      if (tick_1sec_p = '1') then
         chan_rate_counter(i) <= (others => '0');
       elsif (adc_valid_p = '1') and (to_integer(unsigned(adc_chan)) = i+1) then
         chan_rate_counter(i) <= chan_rate_counter(i) + 1;
