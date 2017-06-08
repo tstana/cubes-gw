@@ -173,8 +173,8 @@ architecture behav of wb_siphra_ctrl is
   signal chanrater          : t_chanrater;
   signal chan_rate_counter  : t_chan_rate_counter;
   
-  signal counter_100ms      : unsigned(23 downto 0);  
-  signal tick_100ms_p       : std_logic;
+  signal counter_1sec       : unsigned(26 downto 0);
+  signal tick_1sec_p        : std_logic;
   
 --==============================================================================
 --  architecture begin
@@ -368,7 +368,7 @@ gen_chanrater : for i in 0 to 15 generate
     elsif rising_edge(clk_i) then
       if (chanrater_read_p(i) = '1') then
         chanrater(i) <= (others => '0');
-      elsif (tick_100ms_p = '1') then
+      elsif (tick_1sec_p = '1') then
         chanrater(i) <= x"0000" & std_logic_vector(chan_rate_counter(i));
       end if;
     end if;
@@ -442,17 +442,17 @@ end generate;
   --============================================================================
   -- Channel rate counters
   --============================================================================
-  p_counter_100ms : process (clk_i, rst_n_a_i) is
+  p_counter_1sec : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
-      counter_100ms <= (others => '0');
-      tick_100ms_p <= '0';
+      counter_1sec <= (others => '0');
+      tick_1sec_p <= '0';
     elsif rising_edge(clk_i) then
-      counter_100ms <= counter_100ms + 1;
-      tick_100ms_p <= '0';
-      if (counter_100ms = 9_999_999) then
-        counter_100ms <= (others => '0');
-        tick_100ms_p <= '1';
+      counter_1sec <= counter_1sec + 1;
+      tick_1sec_p <= '0';
+      if (counter_1sec = 99_999_999) then
+        counter_1sec <= (others => '0');
+        tick_1sec_p <= '1';
       end if;
     end if;
   end process;
@@ -463,7 +463,7 @@ gen_rate_counters : for i in 0 to 15 generate
     if (rst_n_a_i = '0') then
       chan_rate_counter(i) <= (others => '0');
     elsif rising_edge(clk_i) then
-      if (chanrater_read_p(i) = '1') or (tick_100ms_p = '1') then
+      if (chanrater_read_p(i) = '1') or (tick_1sec_p = '1') then
         chan_rate_counter(i) <= (others => '0');
       elsif (adc_valid_p = '1') and (to_integer(unsigned(adc_chan)) = i+1) then
         chan_rate_counter(i) <= chan_rate_counter(i) + 1;
