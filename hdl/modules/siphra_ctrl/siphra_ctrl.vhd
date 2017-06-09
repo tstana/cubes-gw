@@ -72,6 +72,7 @@ entity siphra_ctrl is
     txd_i             : in  std_logic;
     adc_value_o       : out std_logic_vector(11 downto 0);
     adc_chan_o        : out std_logic_vector( 4 downto 0);
+    adc_trig_flag_o   : out std_logic;
     adc_trig_type_o   : out std_logic_vector( 1 downto 0);
     adc_valid_o       : out std_logic;
     
@@ -156,7 +157,7 @@ architecture behav of siphra_ctrl is
   signal sysclk_d0        : std_logic;
   signal sysclk_fedge_p   : std_logic;
   
-  signal adc_sreg         : std_logic_vector(21 downto 0);
+  signal adc_sreg         : std_logic_vector(19 downto 0);
   signal adc_sreg_en      : std_logic;
   signal adc_bit_count    : unsigned(4 downto 0);
   
@@ -315,6 +316,7 @@ begin
   adc_value_o <= adc_sreg(11 downto 0);
   adc_trig_type_o <= adc_sreg(13 downto 12);
   adc_chan_o <= adc_sreg(18 downto 14);
+  adc_trig_flag_o <= adc_sreg(19);
   
 end architecture behav;
 --==============================================================================
