@@ -125,6 +125,7 @@ architecture behav of wb_siphra_ctrl is
       adc_value_o       : out std_logic_vector(11 downto 0);
       adc_chan_o        : out std_logic_vector( 4 downto 0);
       adc_trig_type_o   : out std_logic_vector( 1 downto 0);
+      adc_trig_flag_o   : out std_logic;
       adc_valid_o       : out std_logic;
 
       ---------------------------------------------------------------------------
@@ -164,6 +165,7 @@ architecture behav of wb_siphra_ctrl is
   
   signal adc_value        : std_logic_vector(11 downto 0);
   signal adc_trig_type    : std_logic_vector( 1 downto 0);
+  signal adc_trig_flag    : std_logic;
   signal adc_chan         : std_logic_vector( 4 downto 0);
   signal adc_valid        : std_logic;
   signal adc_valid_d0     : std_logic;
@@ -426,6 +428,7 @@ end generate;
       adc_value_o       => adc_value,
       adc_chan_o        => adc_chan,
       adc_trig_type_o   => adc_trig_type,
+      adc_trig_flag_o   => adc_trig_flag,
       adc_valid_o       => adc_valid,
 
       ---------------------------------------------------------------------------
@@ -463,7 +466,8 @@ gen_rate_counters : for i in 0 to 15 generate
     elsif rising_edge(clk_i) then
       if (tick_1sec_p = '1') then
         chan_rate_counter(i) <= (others => '0');
-      elsif (adc_valid_p = '1') and (to_integer(unsigned(adc_chan)) = i+1) then
+      elsif (adc_valid_p = '1') and
+            (to_integer(unsigned(adc_chan)) = i+1) and (adc_trig_flag = '1') then
         chan_rate_counter(i) <= chan_rate_counter(i) + 1;
       end if;
     end if;
