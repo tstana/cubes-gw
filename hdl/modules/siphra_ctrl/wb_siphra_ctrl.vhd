@@ -351,7 +351,7 @@ begin
         adcr(15 downto 12) <= (others => '0');
         adcr(20 downto 16) <= adc_chan;
         adcr(22 downto 21) <= adc_trig_type;
-        adcr(30 downto 17) <= (others => '0');
+        adcr(30 downto 23) <= (others => '0');
         adcr(31) <= '1';
       end if;
       
