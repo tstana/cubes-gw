@@ -108,6 +108,15 @@ architecture behav of mist_i2cs_wbm_bridge is
   --============================================================================
   constant c_max_data_bytes : natural := f_log2_size(c_wishbone_data_width)-1;
 
+  constant CMD_READ_ALL_REGS      : std_logic_vector(7 downto 0) := x"11";
+  constant CMD_GET_CUBES_ID       : std_logic_vector(7 downto 0) := x"90";
+  constant CMD_SET_LEDS           : std_logic_vector(7 downto 0) := x"91";
+  constant CMD_GET_LEDS           : std_logic_vector(7 downto 0) := x"92";
+  constant CMD_SIPHRA_REG_OP      : std_logic_vector(7 downto 0) := x"93";
+  constant CMD_GET_SIPHRA_DATAR   : std_logic_vector(7 downto 0) := x"94";
+  constant CMD_GET_SIPHRA_ADCR    : std_logic_vector(7 downto 0) := x"95";
+  constant CMD_GET_CH_REG_MASK    : std_logic_vector(7 downto 4) := x"a";
+
   --============================================================================
   -- Component declarations
   --============================================================================
@@ -267,46 +276,59 @@ begin
           
         when DECODE_MSG_ID =>
           if (i2c_r_done_p = '1') then
-            if (i2c_rx_byte = x"11") then
-              wb_adr <= x"00000000";
-              bytes_left <= to_unsigned(783, bytes_left'length);
-              state <= WB_CYCLE;
-            elsif (i2c_rx_byte = x"90") then
-              wb_adr <= x"00000000";
-              bytes_left <= to_unsigned(7, bytes_left'length);
-              state <= WB_CYCLE;
-            elsif (i2c_rx_byte = x"91") then
-              wb_adr <= x"00000014";
-              bytes_left <= to_unsigned(3, bytes_left'length);
-              state <= RECEIVE_DATA;
-            elsif (i2c_rx_byte = x"92") then
-              wb_adr <= x"00000014";
-              bytes_left <= to_unsigned(3, bytes_left'length);
-              state <= WB_CYCLE;
-            elsif (i2c_rx_byte = x"93") then
-              wb_adr <= x"00000300";
-              bytes_left <= to_unsigned(7, bytes_left'length);
-              state <= RECEIVE_DATA;
-            elsif (i2c_rx_byte = x"94") then
-              wb_adr <= x"00000300";
-              bytes_left <= to_unsigned(3, bytes_left'length);
-              state <= WB_CYCLE;
-            elsif (i2c_rx_byte = x"95") then
-              wb_adr <= x"00000308";
-              bytes_left <= to_unsigned(3, bytes_left'length);
-              state <= WB_CYCLE;
-            elsif (i2c_rx_byte(7 downto 4) = x"a") then
-              wb_adr(31 downto 12) <= (others => '0');
-              wb_adr(11 downto  8) <= x"2";
-              wb_adr( 7 downto  4) <= unsigned(i2c_rx_byte(3 downto 0));
-              wb_adr( 3 downto  0) <= (others => '0');
-              bytes_left <= to_unsigned(3, bytes_left'length);
-              state <= WB_CYCLE;
-            else
-              state <= UART_WRAPPER_STOP;
-              -- state <= IDLE;
-              -- NACK here !
-            end if;
+          
+            case i2c_rx_byte is
+            
+              when CMD_READ_ALL_REGS =>
+                wb_adr <= x"00000000";
+                bytes_left <= to_unsigned(783, bytes_left'length);
+                state <= WB_CYCLE;
+                
+              when CMD_GET_CUBES_ID =>
+                wb_adr <= x"00000000";
+                bytes_left <= to_unsigned(7, bytes_left'length);
+                state <= WB_CYCLE;
+                
+              when CMD_SET_LEDS =>
+                wb_adr <= x"00000014";
+                bytes_left <= to_unsigned(3, bytes_left'length);
+                state <= RECEIVE_DATA;
+              
+              when CMD_GET_LEDS =>
+                wb_adr <= x"00000014";
+                bytes_left <= to_unsigned(3, bytes_left'length);
+                state <= WB_CYCLE;
+              
+              when CMD_SIPHRA_REG_OP =>
+                wb_adr <= x"00000300";
+                bytes_left <= to_unsigned(7, bytes_left'length);
+                state <= RECEIVE_DATA;
+              
+              when CMD_GET_SIPHRA_DATAR =>
+                wb_adr <= x"00000300";
+                bytes_left <= to_unsigned(3, bytes_left'length);
+                state <= WB_CYCLE;
+              
+              when CMD_GET_SIPHRA_ADCR =>
+                wb_adr <= x"00000308";
+                bytes_left <= to_unsigned(3, bytes_left'length);
+                state <= WB_CYCLE;
+              
+              when others =>
+                if (i2c_rx_byte(7 downto 4) = CMD_GET_CH_REG_MASK) then
+                  wb_adr(31 downto 12) <= (others => '0');
+                  wb_adr(11 downto  8) <= x"2";
+                  wb_adr( 7 downto  4) <= unsigned(i2c_rx_byte(3 downto 0));
+                  wb_adr( 3 downto  0) <= (others => '0');
+                  bytes_left <= to_unsigned(3, bytes_left'length);
+                  state <= WB_CYCLE;
+                else
+                  state <= UART_WRAPPER_STOP;
+                end if;
+                -- state <= IDLE;
+                -- NACK here !
+            end case;
+
           end if;
           
         -- when GET_DLC =>
