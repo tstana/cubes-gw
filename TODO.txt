@@ -1,9 +1,9 @@
-- Add CHANxxVALR
-- FPGA sending in little endian order (?)
-- implement MSP
+x FPGA sending in little endian order (?)
 - implement command as type
 - test command
 - f_decode_command
+- Add CHANxxVALR
+- implement MSP
 - (?) CMD_READOUT reg setting from UI keeps from read to read -- FPGA or ASIC?
 - SPI frequency selectable by register
 -- intervention needed on spi_master
