@@ -94,12 +94,15 @@ architecture behav of mist_i2cs_wbm_bridge is
   type t_state is (
     IDLE,
     TRANSACTION_HEADER,
-    FRAME_ACK,
 
+    PREP_F_ACK,
+    PREP_T_ACK,
     SEND_HEADER_FRAME,
     
-    RECEIVE_PAYLOAD_FRAME,
-    SEND_PAYLOAD_FRAME,
+    RECEIVE_DATA_FRAME,
+    SEND_DATA_FRAME,
+    APPLY_DATA_FRAME,
+    
     UART_TX_START,
     WB_CYCLE,
     UART_WRAPPER_STOP
@@ -109,19 +112,29 @@ architecture behav of mist_i2cs_wbm_bridge is
   -- Constant declarations
   --============================================================================
   -- TODO: ----- move these to OBC package !!!
-  constant OP_NULL                  : std_logic_vector(6 downto 0) := x"00";
-  constant OP_DATA_FRAME            : std_logic_vector(6 downto 0) := x"01";
-  constant OP_F_ACK                 : std_logic_vector(6 downto 0) := x"02";
-  constant OP_T_ACK                 : std_logic_vector(6 downto 0) := x"03";
-  constant OP_READ_ALL_REGS         : std_logic_vector(6 downto 0) := x"11";
-  constant OP_GET_CUBES_ID          : std_logic_vector(6 downto 0) := x"40";
-  constant OP_SET_LEDS              : std_logic_vector(6 downto 0) := x"41";
-  constant OP_GET_LEDS              : std_logic_vector(6 downto 0) := x"42";
-  constant OP_SIPHRA_REG_OP         : std_logic_vector(6 downto 0) := x"43";
-  constant OP_GET_SIPHRA_DATAR      : std_logic_vector(6 downto 0) := x"44";
-  constant OP_GET_SIPHRA_ADCR       : std_logic_vector(6 downto 0) := x"45";
-  constant OP_GET_CH_REG_MASK       : std_logic_vector(6 downto 4) := x"5";
-  constant OP_NONE                  : std_logic_vector(6 downto 0) := x"ff";
+  function to7bits(v : std_logic_vector(7 downto 0)) return std_logic_vector is
+  begin
+    return v(6 downto 0);
+  end function;
+
+  function to3bits(v : std_logic_vector(3 downto 0)) return std_logic_vector is
+  begin
+    return v(2 downto 0);
+  end function;
+
+  constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
+  constant OP_DATA_FRAME            : std_logic_vector(6 downto 0) := to7bits(x"01");
+  constant OP_F_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"02");
+  constant OP_T_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"03");
+  constant OP_READ_ALL_REGS         : std_logic_vector(6 downto 0) := to7bits(x"11");
+  constant OP_GET_CUBES_ID          : std_logic_vector(6 downto 0) := to7bits(x"40");
+  constant OP_SET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"41");
+  constant OP_GET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"42");
+  constant OP_SIPHRA_REG_OP         : std_logic_vector(6 downto 0) := to7bits(x"43");
+  constant OP_GET_SIPHRA_DATAR      : std_logic_vector(6 downto 0) := to7bits(x"44");
+  constant OP_GET_SIPHRA_ADCR       : std_logic_vector(6 downto 0) := to7bits(x"45");
+  constant OP_GET_CH_REG_MASK       : std_logic_vector(6 downto 4) := to3bits(x"5");
+  constant OP_NONE                  : std_logic_vector(6 downto 0) := to7bits(x"ff");
 
   --============================================================================
   -- Component declarations
@@ -164,6 +177,7 @@ architecture behav of mist_i2cs_wbm_bridge is
   --============================================================================
   signal state                  : t_state;
   signal state_d0               : t_state; -- one clock cycle delayed
+  signal next_transaction_state : t_state; -- next state while in transaction
   
   -- I2C signals
   signal i2c_tx_byte            : std_logic_vector(7 downto 0);
@@ -197,9 +211,13 @@ architecture behav of mist_i2cs_wbm_bridge is
   signal opcode                 : std_logic_vector(6 downto 0);
   signal current_op             : std_logic_vector(6 downto 0);
   signal data_len               : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
-  signal data_byte_counter      : unsigned(OBC_DL_WIDTH-1 downto 0);
-  signal frame_byte_counter     : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  signal data_byte_count        : unsigned(OBC_DL_WIDTH-1 downto 0);
+  signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
   signal nr_data_bytes          : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  
+  signal data_buf               : std_logic_vector(7 downto 0);
+  signal data_buf_addr          : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  signal data_buf_write_p       : std_logic;
 
 --==============================================================================
 --  architecture begin
@@ -241,8 +259,6 @@ begin
       w_done_p_o      => i2c_w_done_p
     );
 
-  i2c_tx_byte <= wb_dat_in(31 downto 24);
-
   --============================================================================
   -- Wishbone master
   --============================================================================
@@ -265,6 +281,7 @@ begin
     if (rst_n_a_i = '0') then
       state <= IDLE;
       state_d0 <= IDLE;
+      next_transaction_state <= TRANSACTION_HEADER;
       wb_cyc <= '0';
       wb_stb <= '0';
       wb_we  <= '0';
@@ -272,8 +289,8 @@ begin
       wb_dat_out <= (others => '0');
       tx_start_p <= '0';
       data_len <= (others => '0');
-      data_byte_counter <= (others => '0');
-      frame_byte_counter <= (others => '0');
+      data_byte_count <= (others => '0');
+      frame_byte_count <= (others => '0');
       uart_wrapper_stop_p <= '0';
       
     elsif rising_edge(clk_i) then
@@ -287,58 +304,13 @@ begin
         -- IDLE, waiting for frame
         -----------------------------------------------------------------------
         when IDLE =>
+        
           wb_dat_out <= (others => '0');
           uart_wrapper_stop_p <= '0';
-          frame_byte_counter <= (others => '0');
+          frame_byte_count <= (others => '0');
           
-          if (i2c_addr_match_p = '1') and (i2c_op = '1') then
-          
-              case current_op is
-              
-                when OP_NONE =>
-                  state <= TRANSACTION_HEADER;
-                  state_after <= IDLE;
-              
-                when OP_SET_LEDS =>
-                  state <= SEND_F_ACK;
-                  wb_adr <= x"00000014";
-                  data_byte_counter <= unsigned(data_len);
-                  state_after <= RECEIVE_DATA_FRAME;
-                
-                when OP_GET_LEDS =>
-                  wb_adr <= x"00000014";
-                  data_byte_counter <= to_unsigned(3, bytes_left'length);
-                  state <= WB_CYCLE;
-                
-                when OP_SIPHRA_REG_OP =>
-                  wb_adr <= x"00000300";
-                  data_byte_counter <= to_unsigned(7, bytes_left'length);
-                  state <= RECEIVE_DATA;
-                
-                when OP_GET_SIPHRA_DATAR =>
-                  wb_adr <= x"00000300";
-                  data_byte_counter <= to_unsigned(3, bytes_left'length);
-                  state <= WB_CYCLE;
-                
-                when OP_GET_SIPHRA_ADCR =>
-                  wb_adr <= x"00000308";
-                  data_byte_counter <= to_unsigned(3, bytes_left'length);
-                  state <= WB_CYCLE;
-                
-                when others =>
-                  if (i2c_rx_byte(7 downto 4) = CMD_GET_CH_REG_MASK) then
-                    wb_adr(31 downto 12) <= (others => '0');
-                    wb_adr(11 downto  8) <= x"2";
-                    wb_adr( 7 downto  4) <= unsigned(i2c_rx_byte(3 downto 0));
-                    wb_adr( 3 downto  0) <= (others => '0');
-                    data_byte_counter <= to_unsigned(3, bytes_left'length);
-                    state <= WB_CYCLE;
-                  else
-                    state <= UART_WRAPPER_STOP;
-                  end if;
-
-                end case;
-
+          if (i2c_addr_match_p = '1') then
+            state <= next_transaction_state;
           end if;
           
         -----------------------------------------------------------------------
@@ -347,31 +319,30 @@ begin
         when TRANSACTION_HEADER =>
           if (i2c_r_done_p = '1') then
           
-            frame_byte_counter <= frame_byte_counter + 1;
+            frame_byte_count <= frame_byte_count + 1;
             
-            ----------------------
             -- FID + OPCODE field
-            ----------------------
-            if (frame_byte_counter = 0) then
+            if (frame_byte_count = 0) then
               tid <= i2c_rx_byte(7);
               fid <= i2c_rx_byte(7);
               opcode <= i2c_rx_byte(6 downto 0);
               
-            ------------
             -- DL field
-            ------------
-            else if (frame_byte_counter < 5) then
-              data_len <= data_len(c_obc_dlc_width-9 downto 0) & i2c_rx_byte;
+            elsif (frame_byte_count < 5) then
+              data_len <= data_len(OBC_DL_WIDTH-9 downto 0) & i2c_rx_byte;
               
-            ----------
             -- CRC !!!
-            ----------
             
-            --------------------------------------------------
-            -- done shifting in header - store current OPCODE
-            --------------------------------------------------
+            -- done shifting in header - store current OPCODE and next
+            -- transaction state
             else
               current_op <= opcode;
+              case opcode is
+                when OP_SET_LEDS =>
+                  next_transaction_state <= PREP_F_ACK;
+                when others =>
+                  next_transaction_state <= PREP_T_ACK;
+              end case;
               state <= IDLE;
             
             end if;
@@ -382,15 +353,25 @@ begin
         -----------------------------------------------------------------------
         -- Prepare F_ACK and T_ACK frames
         -----------------------------------------------------------------------
-        when SEND_F_ACK =>
-          opcode <= OP_F_ACK;
+        when PREP_F_ACK =>
+          -- opcode <= OP_F_ACK;
           data_len <= (others => '0');
-          if (i2c_addr_match_p = '1') and (i2c_op = '0') then
-            i2c_rx_byte <= fid & opcode;
-            fid_prev <= fid;
-            state <= SEND_HEADER_FRAME;
-          end if;
+          i2c_tx_byte <= fid & OP_F_ACK;
+          -- i2c_tx_byte <= fid & opcode;
+          fid_prev <= fid;
+          state <= SEND_HEADER_FRAME;
+          next_transaction_state <= RECEIVE_DATA_FRAME;
           
+        when PREP_T_ACK =>
+          -- opcode <= OP_F_ACK;
+          data_len <= (others => '0');
+          i2c_tx_byte <= fid & OP_T_ACK;
+          -- i2c_tx_byte <= fid & opcode;
+          fid_prev <= fid;
+          state <= SEND_HEADER_FRAME;
+          next_transaction_state <= TRANSACTION_HEADER;
+          current_op <= OP_NONE;
+
         -----------------------------------------------------------------------
         -- Sending and receiving header frames
         -----------------------------------------------------------------------
@@ -407,7 +388,7 @@ begin
               i2c_tx_byte <= data_len(OBC_DL_WIDTH-1 downto OBC_DL_WIDTH-8);
               data_len <= data_len(OBC_DL_WIDTH-9 downto 0) & x"00";
             else
-              state <= state_after;
+              state <= IDLE;
             end if;
           end if;
           
@@ -417,27 +398,28 @@ begin
         when RECEIVE_DATA_FRAME =>
           data_buf_write_p <= '0';
           if (i2c_r_done_p = '1') then
-            frame_byte_counter <= frame_byte_counter + 1;
+            frame_byte_count <= frame_byte_count + 1;
             
             -- Shift in FID+OPCODE
-            if (frame_byte_counter = 0) then
+            if (frame_byte_count = 0) then
               fid <= i2c_rx_byte(7);
               opcode <= i2c_rx_byte(6 downto 0);
-              if (data_byte_counter > OBC_MTU)
-                nr_data_bytes <= data_byte_counter;
+              if (data_byte_count > OBC_MTU) then
+                nr_data_bytes <= data_byte_count(8 downto 0); -- NB: Needs constant for range!!!
               else
-                nr_data_bytes <= OBC_MTU;
+                nr_data_bytes <= to_unsigned(OBC_MTU, nr_data_bytes'length);
               end if;
               
             -- Shift in DATA bytes
-            else if (frame_byte_counter < nr_data_bytes) then
+            elsif (frame_byte_count < nr_data_bytes) then
               data_buf <= i2c_rx_byte;
               data_buf_write_p <= '1';
               data_buf_addr <= data_buf_addr + 1;
-              data_byte_counter <= data_byte_counter - 1;
+              data_byte_count <= data_byte_count - 1;
               
             -- Done shifting in bytes - start applying if correct frame
             else
+              -- check for OPCODE here !!!
               if (fid = not fid_prev) then
                 state <= APPLY_DATA_FRAME;
               else
@@ -446,6 +428,18 @@ begin
             
             end if;
           end if;
+          
+        -- Apply the received data frame
+        when APPLY_DATA_FRAME =>
+          -------------------------------
+          -- actually apply the data !!!
+          -------------------------------
+          if (data_byte_count = 0) then
+            next_transaction_state <= PREP_T_ACK;
+          else
+            next_transaction_state <= PREP_F_ACK;
+          end if;
+          state <= IDLE;
         
         ---------------------------
         -- TODO: Remove me for I2C
@@ -473,11 +467,12 @@ begin
             -- Finally, if we are to send (WB to read), get the data
             -- and go back to TX state, incrementing the WB address.
             -- The TX state handles shifting of WB data.
-            if (bytes_left = (bytes_left'range => '1')) then
+            if (data_byte_count = (data_byte_count'range => '1')) then
               state <= UART_WRAPPER_STOP;
             elsif (wb_we = '1') then
               wb_adr <= wb_adr + 4;
-              state <= RECEIVE_DATA;
+              -- !!!!!!
+              state <= RECEIVE_DATA_FRAME;
             else
               wb_dat_in <= wbm_i.dat;
               wb_adr <= wb_adr + 4;
@@ -499,6 +494,7 @@ begin
           state <= IDLE;
         
         when others =>
+          -- current_op <= OP_NONE; -- ????
           state <= IDLE;
           
       end case;
