@@ -46,8 +46,11 @@ package mist_obc_pkg is
   -- OBC-specific defines
   --============================================================================
   -- DLC field width constants
-  constant c_obc_dl_width      : natural       := 32;
-  constant c_obc_dl_nr_bytes   : natural       := f_log2_size(c_obc_dl_width);
+  constant OBC_MTU            : natural       := 507;
+  constant OBC_DL_WIDTH       : natural       :=  32;
+  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH);
+  constant OBC_FCS_WIDTH      : natural       :=   0;
+  constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
 
   -- OBC message ID type
   type t_obc_msg is record
