@@ -52,6 +52,8 @@ architecture arch of testbench is
   --============================================================================
   type t_master_state is (
     IDLE,
+
+    PREP_TRANSACTION_HEADER,
     SEND_TRANSACTION_HEADER,
 
     PREP_F_ACK,
@@ -67,14 +69,52 @@ architecture arch of testbench is
   );
   
   --============================================================================
+  -- Function declarations
+  --============================================================================
+  function to7bits(v : std_logic_vector(7 downto 0)) return std_logic_vector is
+  begin
+    return v(6 downto 0);
+  end function;
+
+  function to3bits(v : std_logic_vector(3 downto 0)) return std_logic_vector is
+  begin
+    return v(2 downto 0);
+  end function;
+
+  --============================================================================
   -- Constant declarations
   --============================================================================
-  constant CLK_PERIOD   : time := 10 ns;
-  constant RESET_PERIOD : time := 45 ns;
+  constant CLK_PERIOD       : time := 10 ns;
+  constant RESET_PERIOD     : time := 45 ns;
   
-  constant BAUD_DIV_INT : natural := 867;
-  constant BAUD_DIV     : std_logic_vector :=
+  constant BAUD_DIV_INT     : natural := 867;
+  constant BAUD_DIV         : std_logic_vector :=
       std_logic_vector(to_unsigned(BAUD_DIV_INT, f_log2_size(BAUD_DIV_INT)));
+
+  -- I2C address of slave
+  constant CUBES_I2C_ADDR   : std_logic_vector(6 downto 0) := to7bits(x"70");
+
+  -- MSP size defines
+  constant OBC_MTU            : natural       := 507;
+  constant OBC_DL_WIDTH       : natural       :=  32;
+  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH);
+  constant OBC_FCS_WIDTH      : natural       :=   0;
+  constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
+
+  -- MSP operations
+  constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
+  constant OP_DATA_FRAME            : std_logic_vector(6 downto 0) := to7bits(x"01");
+  constant OP_F_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"02");
+  constant OP_T_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"03");
+  constant OP_READ_ALL_REGS         : std_logic_vector(6 downto 0) := to7bits(x"11");
+  constant OP_GET_CUBES_ID          : std_logic_vector(6 downto 0) := to7bits(x"40");
+  constant OP_SET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"41");
+  constant OP_GET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"42");
+  constant OP_SIPHRA_REG_OP         : std_logic_vector(6 downto 0) := to7bits(x"43");
+  constant OP_GET_SIPHRA_DATAR      : std_logic_vector(6 downto 0) := to7bits(x"44");
+  constant OP_GET_SIPHRA_ADCR       : std_logic_vector(6 downto 0) := to7bits(x"45");
+  constant OP_GET_CH_REG_MASK       : std_logic_vector(6 downto 4) := to3bits(x"5");
+  constant OP_NONE                  : std_logic_vector(6 downto 0) := to7bits(x"ff");
 
   --============================================================================
   -- Component declarations
@@ -120,14 +160,29 @@ architecture arch of testbench is
   signal master_rx_data             : std_logic_vector(7 downto 0);
   signal master_tx_start_p          : std_logic;
   signal master_tx_ready            : std_logic;
+  signal master_tx_ready_d0         : std_logic;
+  signal master_tx_ready_p          : std_logic;
   signal master_rx_ready            : std_logic;
+  signal master_rx_ready_d0         : std_logic;
+  signal master_rx_ready_p          : std_logic;
   
   -- MSP signals
   signal master_state               : t_master_state;
+  signal master_state_d0            : t_master_state;
+  signal transaction_state          : t_master_state;
   signal transaction_ongoing        : std_logic;
+  
+  signal header_buf                 : std_logic_vector(47 downto 0);
+  
+  signal opcode                     : std_logic_vector( 6 downto 0);
+  signal fid                        : std_logic;
+  signal dl                         : std_logic_vector(31 downto 0);
+  
+  signal frame_byte_count           : unsigned(31 downto 0);
   
   -- 1us counter between transactions
   signal count_1us                  : integer range 0 to 100;
+  signal count_1us_done_p           : std_logic;
   signal first_run                  : boolean := false;
   
 --==============================================================================
@@ -191,20 +246,78 @@ begin
   begin
     if (rst_n = '0') then
       master_state <= IDLE;
+      transaction_state <= IDLE;
       transaction_ongoing <= '0';
+      
+      count_1us <= 0;
+      count_1us_done_p <= '0';
+      
+      frame_byte_count <= (others => '0');
+      header_buf <= (others => '0');
+      
+      master_tx_start_p <= '0';
+      master_tx_ready_d0 <= '0';
+      master_tx_ready_p <= '0';
+      master_rx_ready_d0 <= '0';
+      master_rx_ready_p <= '0';
+      
     elsif rising_edge(clk_100meg) then
     
+      master_state_d0 <= master_state;
+      
+      master_tx_ready_d0 <= master_tx_ready;
+      master_tx_ready_p  <= master_tx_ready and (not master_tx_ready_d0);
+      master_rx_ready_d0 <= master_rx_ready;
+      master_rx_ready_p  <= master_rx_ready and (not master_rx_ready_d0);
+      
+      count_1us_done_p <= '0';
+      
       case master_state is
         when IDLE =>
-          if (transaction_ongoing = '0') and (first_run = false) then
-            count_1us <= count_1us + 1;
-            if (count_1us = 99) then
-              count_1us <= 0;
-              master_state <= SEND_TRANSACTION_HEADER;
+          master_tx_start_p <= '0';
+          frame_byte_count <= (others => '0');
+          if (transaction_ongoing = '0') then
+            if (first_run = false) then
+              count_1us <= count_1us + 1;
+              if (count_1us = 99) then
+                count_1us_done_p <= '1';
+                count_1us <= 0;
+                master_state <= PREP_TRANSACTION_HEADER;
+                transaction_state <= IDLE;
+              end if;
+            else
+              first_run <= false;
             end if;
           else
-            first_run <= false;
+            master_state <= transaction_state;
           end if;
+          
+        when PREP_TRANSACTION_HEADER =>
+          header_buf(47 downto 40) <= CUBES_I2C_ADDR & '0';
+          header_buf(39 downto 32) <= fid & opcode;
+          header_buf(31 downto  0) <= dl;
+          master_tx_start_p <= '1';
+          master_state <= SEND_TRANSACTION_HEADER;
+          transaction_ongoing <= '1';
+          
+        when SEND_TRANSACTION_HEADER =>
+          master_tx_start_p <= '0';
+          if (master_tx_ready_p = '1') then
+            master_tx_data <= header_buf(47 downto 40);
+            header_buf <= header_buf(39 downto 0) & x"00";
+            frame_byte_count <= frame_byte_count + 1;
+            if (frame_byte_count = 6) then
+              master_state <= IDLE;
+              transaction_ongoing <= '0';
+            else
+              master_tx_start_p <= '1';
+              master_state <= UART_TX_START;
+            end if;
+          end if;
+          
+        when UART_TX_START =>
+          master_tx_start_p <= '0';
+          master_state <= master_state_d0;
           
         when others =>
           master_state <= IDLE;
@@ -213,6 +326,18 @@ begin
       
     end if;
   end process P_FSM;
+
+  --============================================================================
+  -- Stimuli
+  --============================================================================
+  P_STIM : process
+  begin
+    wait until rst_n = '0';
+    opcode <= OP_SET_LEDS;
+    fid <= '0';
+    dl <= std_logic_vector(to_unsigned(4, 32));
+    wait;
+  end process P_STIM;
 
 end architecture arch;
 --==============================================================================
