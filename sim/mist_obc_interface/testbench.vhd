@@ -81,22 +81,24 @@ architecture arch of testbench is
   --============================================================================
   -- Constant declarations
   --============================================================================
-  constant CLK_PERIOD       : time := 10 ns;
-  constant RESET_PERIOD     : time := 45 ns;
+  constant CLK_PERIOD           : time := 10 ns;
+  constant RESET_PERIOD         : time := 45 ns;
   
-  constant BAUD_DIV_INT     : natural := 867;
-  constant BAUD_DIV         : std_logic_vector :=
+  constant BAUD_DIV_INT         : natural := 867;
+  constant BAUD_DIV             : std_logic_vector :=
       std_logic_vector(to_unsigned(BAUD_DIV_INT, f_log2_size(BAUD_DIV_INT)));
+      
+  constant INTER_FRAME_DELAY    : natural := 999;   -- 10 us
 
   -- I2C address of slave
-  constant CUBES_I2C_ADDR   : std_logic_vector(6 downto 0) := to7bits(x"70");
+  constant CUBES_I2C_ADDR       : std_logic_vector(6 downto 0) := to7bits(x"70");
 
   -- MSP size defines
-  constant OBC_MTU            : natural       := 507;
-  constant OBC_DL_WIDTH       : natural       :=  32;
-  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH);
-  constant OBC_FCS_WIDTH      : natural       :=   0;
-  constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
+  constant OBC_MTU              : natural       := 507;
+  constant OBC_DL_WIDTH         : natural       :=  32;
+  constant OBC_DL_NR_BYTES      : natural       := f_log2_size(OBC_DL_WIDTH);
+  constant OBC_FCS_WIDTH        : natural       :=   0;
+  constant OBC_FCS_NR_BYTES     : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
 
   -- MSP operations
   constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
@@ -177,9 +179,9 @@ architecture arch of testbench is
   signal frame_byte_count           : unsigned(31 downto 0);
   
   -- 1us counter between transactions
-  signal count_1us                  : integer range 0 to 100;
-  signal count_1us_done_p           : std_logic;
-  signal first_run                  : boolean := false;
+  signal delay_count                : natural;
+  signal delay_count_done_p         : std_logic;
+  signal first_run                  : boolean := true;
   
 --==============================================================================
 --  architecture begin
@@ -245,8 +247,8 @@ begin
       transaction_state <= IDLE;
       transaction_ongoing <= '0';
       
-      count_1us <= 0;
-      count_1us_done_p <= '0';
+      delay_count <= 0;
+      delay_count_done_p <= '0';
       
       frame_byte_count <= (others => '0');
       header_buf <= (others => '0');
@@ -259,6 +261,8 @@ begin
       
     elsif rising_edge(clk_100meg) then
     
+      delay_count_done_p <= '0';
+      
       master_tx_start_p <= '0';
       
       master_tx_ready_d0 <= master_tx_ready;
@@ -266,26 +270,20 @@ begin
       master_rx_ready_d0 <= master_rx_ready;
       master_rx_ready_p  <= master_rx_ready and (not master_rx_ready_d0);
       
-      count_1us_done_p <= '0';
-      
       case master_state is
         when IDLE =>
           master_tx_start_p <= '0';
           frame_byte_count <= (others => '0');
-          if (transaction_ongoing = '0') then
-            if (first_run = false) then
-              count_1us <= count_1us + 1;
-              if (count_1us = 99) then
-                count_1us_done_p <= '1';
-                count_1us <= 0;
-                master_state <= PREP_TRANSACTION_HEADER;
-                transaction_state <= IDLE;
-              end if;
-            else
-              first_run <= false;
+
+          master_state <= transaction_state;
+
+          delay_count <= delay_count + 1;
+          if (delay_count = INTER_FRAME_DELAY) then
+            delay_count_done_p <= '1';
+            delay_count <= 0;
+            if (transaction_ongoing = '0') then
+              transaction_state <= PREP_TRANSACTION_HEADER;
             end if;
-          else
-            master_state <= transaction_state;
           end if;
           
         when PREP_TRANSACTION_HEADER =>
@@ -303,6 +301,7 @@ begin
             frame_byte_count <= frame_byte_count + 1;
             if (frame_byte_count = 6) then
               master_state <= IDLE;
+              transaction_state <= IDLE;
               transaction_ongoing <= '0';
             else
               master_tx_start_p <= '1';
