@@ -62,10 +62,7 @@ architecture arch of testbench is
     
     RECEIVE_DATA_FRAME,
     SEND_DATA_FRAME,
-    APPLY_DATA_FRAME,
-    
-    UART_TX_START,
-    UART_WRAPPER_STOP
+    APPLY_DATA_FRAME
   );
   
   --============================================================================
@@ -168,7 +165,6 @@ architecture arch of testbench is
   
   -- MSP signals
   signal master_state               : t_master_state;
-  signal master_state_d0            : t_master_state;
   signal transaction_state          : t_master_state;
   signal transaction_ongoing        : std_logic;
   
@@ -263,7 +259,7 @@ begin
       
     elsif rising_edge(clk_100meg) then
     
-      master_state_d0 <= master_state;
+      master_tx_start_p <= '0';
       
       master_tx_ready_d0 <= master_tx_ready;
       master_tx_ready_p  <= master_tx_ready and (not master_tx_ready_d0);
@@ -301,7 +297,6 @@ begin
           transaction_ongoing <= '1';
           
         when SEND_TRANSACTION_HEADER =>
-          master_tx_start_p <= '0';
           if (master_tx_ready_p = '1') then
             master_tx_data <= header_buf(47 downto 40);
             header_buf <= header_buf(39 downto 0) & x"00";
@@ -311,13 +306,8 @@ begin
               transaction_ongoing <= '0';
             else
               master_tx_start_p <= '1';
-              master_state <= UART_TX_START;
             end if;
           end if;
-          
-        when UART_TX_START =>
-          master_tx_start_p <= '0';
-          master_state <= master_state_d0;
           
         when others =>
           master_state <= IDLE;
