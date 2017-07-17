@@ -37,7 +37,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-use work.mist_obc_pkg.all;
 use work.wishbone_pkg.all;
 use work.genram_pkg.all;
 
@@ -109,9 +108,8 @@ architecture behav of mist_obc_interface is
   );
 
   --============================================================================
-  -- Constant declarations
+  -- Function declarations
   --============================================================================
-  -- TODO: ----- move these to OBC package !!!
   function to7bits(v : std_logic_vector(7 downto 0)) return std_logic_vector is
   begin
     return v(6 downto 0);
@@ -122,6 +120,17 @@ architecture behav of mist_obc_interface is
     return v(2 downto 0);
   end function;
 
+  --============================================================================
+  -- Constant declarations
+  --============================================================================
+  -- MSP size defines
+  constant OBC_MTU            : natural       := 507;
+  constant OBC_DL_WIDTH       : natural       :=  32;
+  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH);
+  constant OBC_FCS_WIDTH      : natural       :=   0;
+  constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
+
+  -- MSP operations
   constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
   constant OP_DATA_FRAME            : std_logic_vector(6 downto 0) := to7bits(x"01");
   constant OP_F_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"02");
