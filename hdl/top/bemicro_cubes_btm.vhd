@@ -162,7 +162,7 @@ architecture arch of bemicro_cubes_btm is
   end component debouncer;
   
   -- I2C slave to Wishbone master following MIST OBC protocol
-  component mist_i2cs_wbm_bridge is
+  component mist_obc_interface is
     port
     (
       -- Clock, active-low reset
@@ -203,7 +203,7 @@ architecture arch of bemicro_cubes_btm is
       rxd_i       : in  std_logic;
       txd_o       : out std_logic
     );
-  end component mist_i2cs_wbm_bridge;
+  end component mist_obc_interface;
 
   -- ID registers slave
   component wb_id_regs is
@@ -323,7 +323,7 @@ begin
   --============================================================================
   -- MIST OBC I2C slave to Wishbone master
   --============================================================================
-  cmp_wb_master : mist_i2cs_wbm_bridge
+  cmp_obc_interface : mist_obc_interface
     port map
     (
       -- Clock, active-low reset

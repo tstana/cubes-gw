@@ -42,7 +42,7 @@ use work.wishbone_pkg.all;
 use work.genram_pkg.all;
 
 
-entity mist_i2cs_wbm_bridge is
+entity mist_obc_interface is
   port
   (
     -- Clock, active-low reset
@@ -83,10 +83,10 @@ entity mist_i2cs_wbm_bridge is
     rxd_i       : in  std_logic;
     txd_o       : out std_logic
   );
-end entity mist_i2cs_wbm_bridge;
+end entity mist_obc_interface;
 
 
-architecture behav of mist_i2cs_wbm_bridge is
+architecture behav of mist_obc_interface is
 
   --============================================================================
   -- Type declarations
