@@ -5,6 +5,7 @@ vcom -93 -work work {../../hdl/ip_cores/general-cores/modules/common/gencores_pk
 vcom -93 -work work {../../hdl/ip_cores/general-cores/modules/common/gc_sync_ffs.vhd}
 vcom -93 -work work {../../hdl/ip_cores/general-cores/modules/wishbone/wishbone_pkg.vhd}
 vcom -93 -work work {../../hdl/bemicro/uart.vhd}
+vcom -93 -work work {../../hdl/bemicro/mist_uart_wrapper.vhd}
 vcom -93 -work work {../../hdl/modules/mist_obc_interface.vhd}
 vcom -93 -work work {testbench.vhd}
 

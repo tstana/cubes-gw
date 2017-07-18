@@ -39,6 +39,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.genram_pkg.all;
+use work.wishbone_pkg.all;
 
 
 entity testbench is
@@ -123,6 +124,9 @@ architecture arch of testbench is
   --============================================================================
   -- Component declarations
   --============================================================================
+  ---------------------------------
+  -- UART component for the master
+  ---------------------------------
   component uart is
     generic
     (
@@ -151,6 +155,52 @@ architecture arch of testbench is
       frame_err_o   : out std_logic
     );
   end component uart;
+
+  -------
+  -- DUT
+  -------
+  component mist_obc_interface is
+    port
+    (
+      -- Clock, active-low reset
+      clk_i       : in  std_logic;
+      rst_n_a_i   : in  std_logic;
+      
+      -- I2C lines
+      scl_i       : in  std_logic;
+      scl_o       : out std_logic;
+      scl_en_o    : out std_logic;
+      sda_i       : in  std_logic;
+      sda_o       : out std_logic;
+      sda_en_o    : out std_logic;
+
+      -- I2C address
+      i2c_addr_i  : in  std_logic_vector(6 downto 0);
+
+      -- Status outputs
+      -- TIP  : Transfer In Progress
+      --        '1' when the I2C slave detects a matching I2C address, thus a
+      --            transfer is in progress
+      --        '0' when idle
+      -- ERR  : Error
+      --       '1' when the SysMon attempts to access an invalid WB slave
+      --       '0' when idle
+      -- WDTO : Watchdog timeout (single clock cycle pulse)
+      --        '1' -- timeout of watchdog occured
+      --        '0' -- when idle
+      tip_o       : out std_logic;
+      err_p_o     : out std_logic;
+      wdto_p_o    : out std_logic;
+
+      -- Wishbone master signals
+      wbm_i       : in  t_wishbone_master_in;
+      wbm_o       : out t_wishbone_master_out;
+      
+      -- TEMPORARY: UART RX and TX
+      rxd_i       : in  std_logic;
+      txd_o       : out std_logic
+    );
+  end component mist_obc_interface;
 
   --============================================================================
   -- Signal declarations
@@ -424,6 +474,41 @@ begin
     wait;
   end process P_STIM;
 
+  --============================================================================
+  -- DUT
+  --============================================================================
+  U_DUT : mist_obc_interface
+    port map
+    (
+    -- Clock, active-low reset
+    clk_i       => clk_100meg,
+    rst_n_a_i   => rst_n,
+    
+    -- I2C lines
+    scl_i       => '0',
+    scl_o       => open,
+    scl_en_o    => open,
+    sda_i       => '0',
+    sda_o       => open,
+    sda_en_o    => open,
+
+    -- I2C address
+    i2c_addr_i  => CUBES_I2C_ADDR,
+
+    -- Unused
+    tip_o       => open,
+    err_p_o     => open,
+    wdto_p_o    => open,
+
+    -- Wishbone master signals
+    wbm_i       => cc_dummy_master_in,
+    wbm_o       => open,
+    
+    -- TEMPORARY: UART RX and TX
+    rxd_i       => master_txd,
+    txd_o       => master_rxd
+    );
+    
 end architecture arch;
 --==============================================================================
 --  architecture end
