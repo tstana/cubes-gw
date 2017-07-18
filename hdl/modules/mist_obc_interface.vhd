@@ -363,6 +363,11 @@ begin
                 when others =>
                   trans_state <= PREP_T_ACK;
               end case;
+              ----------------------------
+              -- TODO: Remove me for I2C!
+              ----------------------------
+              uart_wrapper_stop_p <= '1';
+              ---------------------------
               state <= IDLE;
             
             end if;
