@@ -53,6 +53,8 @@ architecture arch of testbench is
   --============================================================================
   type t_master_state is (
     IDLE,
+    
+    I2C_ADDR_BYTE,
 
     TRANSACTION_HEADER,
 
@@ -237,7 +239,7 @@ architecture arch of testbench is
   signal data_byte_count            : unsigned(31 downto 0);
   signal nr_data_bytes              : unsigned(31 downto 0);
   
-  signal header_buf                 : std_logic_vector(47 downto 0);
+  signal header_buf                 : std_logic_vector(39 downto 0);
   signal data_buf                   : std_logic_vector(47 downto 0);
   
   -- 1us counter between transactions
@@ -347,6 +349,14 @@ begin
           if (delay_count = INTER_FRAME_DELAY) then
             delay_count_done_p <= '1';
             delay_count <= 0;
+            
+            master_tx_data <= CUBES_I2C_ADDR & '0';
+            master_tx_start_p <= '1';
+            master_state <= I2C_ADDR_BYTE;
+          end if;
+          
+        when I2C_ADDR_BYTE =>
+          if (master_tx_ready_p = '1') then
             master_state <= trans_state;
 
             if (trans_active = '0') then
@@ -359,16 +369,13 @@ begin
         -- Dedicated frame states
         ------------------------------------------------------------------------
         when TRANSACTION_HEADER =>
-          header_buf(47 downto 40) <= CUBES_I2C_ADDR & '0';
           header_buf(39 downto 32) <= fid_ext & opcode_ext;
           header_buf(31 downto  0) <= dl_ext;
           opcode <= opcode_ext;
           fid <= fid_ext;
           fid_prev <= fid_ext;
           dl <= dl_ext;
-          master_tx_start_p <= '1';
-          master_tx_data <= CUBES_I2C_ADDR & '0';
-          master_state <= SEND_HEADER_FRAME;
+          master_state <= PREP_NEXT_HEADER_BYTE;
           trans_active <= '1';
           
         when RECEIVE_F_ACK =>
@@ -411,7 +418,6 @@ begin
           end if;
 
         when SEND_DATA_FRAME =>
-          data_buf(47 downto 40) <= CUBES_I2C_ADDR & '0';
           data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
           data_buf(31 downto  8) <= (others => '0');
           data_buf( 7 downto  0) <= leds_setting;         -- TODO: Change me!!!
@@ -423,7 +429,7 @@ begin
         ------------------------------------------------------------------------
         when SEND_HEADER_FRAME =>
           if (master_tx_ready_p = '1') then
-            header_buf <= header_buf(39 downto 0) & x"00";
+            header_buf <= header_buf(31 downto 0) & x"00";
             frame_byte_count <= frame_byte_count + 1;
             master_state <= PREP_NEXT_HEADER_BYTE;
             if (frame_byte_count = 6) then
@@ -438,7 +444,7 @@ begin
           end if;
         
         when PREP_NEXT_HEADER_BYTE =>
-          master_tx_data <= header_buf(47 downto 40);
+          master_tx_data <= header_buf(39 downto 32);
           master_tx_start_p <= '1';
           master_state <= SEND_HEADER_FRAME;
         
