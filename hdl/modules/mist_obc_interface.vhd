@@ -103,8 +103,7 @@ architecture behav of mist_obc_interface is
     APPLY_DATA_FRAME,
     
     UART_TX_START,
-    WB_CYCLE,
-    UART_WRAPPER_STOP
+    WB_CYCLE
   );
 
   --============================================================================
@@ -317,6 +316,8 @@ begin
       -- Keep previous state for switching back to it
       state_d0 <= state;
       
+      uart_wrapper_stop_p <= '0';
+      
       case state is
         
         -----------------------------------------------------------------------
@@ -487,7 +488,8 @@ begin
             -- and go back to TX state, incrementing the WB address.
             -- The TX state handles shifting of WB data.
             if (data_byte_count = (data_byte_count'range => '1')) then
-              state <= UART_WRAPPER_STOP;
+              uart_wrapper_stop_p <= '1';
+              state <= IDLE;
             elsif (wb_we = '1') then
               wb_adr <= wb_adr + 4;
               -- !!!!!!
@@ -496,7 +498,8 @@ begin
               wb_dat_in <= wbm_i.dat;
               wb_adr <= wb_adr + 4;
               -- TODO: Remove/change me for I2C
-              state <= UART_TX_START;
+              uart_wrapper_stop_p <= '1';
+              state <= IDLE;
             end if;
           end if;
           
@@ -505,13 +508,10 @@ begin
             wb_stb <= '0';
             wb_we  <= '0';
             
-            state <= UART_WRAPPER_STOP;
+            uart_wrapper_stop_p <= '1';
+            state <= IDLE;
           end if;
           
-        when UART_WRAPPER_STOP =>
-          uart_wrapper_stop_p <= '1';
-          state <= IDLE;
-        
         when others =>
           -- current_op <= OP_NONE; -- ????
           state <= IDLE;
