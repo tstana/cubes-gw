@@ -186,7 +186,7 @@ architecture behav of mist_obc_interface is
   --============================================================================
   signal state                  : t_state;
   signal state_d0               : t_state; -- one clock cycle delayed
-  signal next_transaction_state : t_state; -- next state while in transaction
+  signal trans_state            : t_state; -- next state while in transaction
   
   -- I2C signals
   signal i2c_tx_byte            : std_logic_vector(7 downto 0);
@@ -290,7 +290,7 @@ begin
     if (rst_n_a_i = '0') then
       state <= IDLE;
       state_d0 <= IDLE;
-      next_transaction_state <= TRANSACTION_HEADER;
+      trans_state <= TRANSACTION_HEADER;
       wb_cyc <= '0';
       wb_stb <= '0';
       wb_we  <= '0';
@@ -329,7 +329,7 @@ begin
           frame_byte_count <= (others => '0');
           
           if (i2c_addr_match_p = '1') then
-            state <= next_transaction_state;
+            state <= trans_state;
           end if;
           
         -----------------------------------------------------------------------
@@ -358,9 +358,9 @@ begin
               current_op <= opcode;
               case opcode is
                 when OP_SET_LEDS =>
-                  next_transaction_state <= PREP_F_ACK;
+                  trans_state <= PREP_F_ACK;
                 when others =>
-                  next_transaction_state <= PREP_T_ACK;
+                  trans_state <= PREP_T_ACK;
               end case;
               state <= IDLE;
             
@@ -379,7 +379,7 @@ begin
           -- i2c_tx_byte <= fid & opcode;
           fid_prev <= fid;
           state <= SEND_HEADER_FRAME;
-          next_transaction_state <= RECEIVE_DATA_FRAME;
+          trans_state <= RECEIVE_DATA_FRAME;
           
         when PREP_T_ACK =>
           -- opcode <= OP_F_ACK;
@@ -388,7 +388,7 @@ begin
           -- i2c_tx_byte <= fid & opcode;
           fid_prev <= fid;
           state <= SEND_HEADER_FRAME;
-          next_transaction_state <= TRANSACTION_HEADER;
+          trans_state <= TRANSACTION_HEADER;
           current_op <= OP_NONE;
 
         -----------------------------------------------------------------------
@@ -454,9 +454,9 @@ begin
           -- actually apply the data !!!
           -------------------------------
           if (data_byte_count = 0) then
-            next_transaction_state <= PREP_T_ACK;
+            trans_state <= PREP_T_ACK;
           else
-            next_transaction_state <= PREP_F_ACK;
+            trans_state <= PREP_F_ACK;
           end if;
           state <= IDLE;
         

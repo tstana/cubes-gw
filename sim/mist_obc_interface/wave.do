@@ -15,7 +15,7 @@ add wave -noupdate /testbench/ERROR
 add wave -noupdate -divider DUT
 add wave -noupdate /testbench/U_DUT/state
 add wave -noupdate /testbench/U_DUT/state_d0
-add wave -noupdate /testbench/U_DUT/next_transaction_state
+add wave -noupdate /testbench/U_DUT/trans_state
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_tx_byte
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_rx_byte
 add wave -noupdate /testbench/U_DUT/i2c_addr_match_p
