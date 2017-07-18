@@ -296,12 +296,22 @@ begin
       wb_we  <= '0';
       wb_dat_in  <= (others => '0');
       wb_dat_out <= (others => '0');
+      
+      i2c_tx_byte <= (others => '0');
       tx_start_p <= '0';
+      uart_wrapper_stop_p <= '0';
+      
+      fid <= '0';
+      fid_prev <= '0';
+      tid <= '0';
+      opcode <= (others => '0');
+      current_op <= (others => '0');
+
       data_len <= (others => '0');
       data_byte_count <= (others => '0');
       frame_byte_count <= (others => '0');
-      uart_wrapper_stop_p <= '0';
-      
+      nr_data_bytes <= (others => '0');
+
     elsif rising_edge(clk_i) then
     
       -- Keep previous state for switching back to it
