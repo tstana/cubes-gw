@@ -87,7 +87,7 @@ architecture arch of testbench is
   constant BAUD_DIV             : std_logic_vector :=
       std_logic_vector(to_unsigned(BAUD_DIV_INT, f_log2_size(BAUD_DIV_INT)));
       
-  constant INTER_FRAME_DELAY    : natural := 999;   -- 10 us
+  constant INTER_FRAME_DELAY    : natural := 999;
 
   -- I2C address of slave
   constant CUBES_I2C_ADDR       : std_logic_vector(6 downto 0) := to7bits(x"70");
@@ -274,13 +274,14 @@ begin
           master_tx_start_p <= '0';
           frame_byte_count <= (others => '0');
 
-          master_state <= transaction_state;
-
           delay_count <= delay_count + 1;
           if (delay_count = INTER_FRAME_DELAY) then
             delay_count_done_p <= '1';
             delay_count <= 0;
+            master_state <= transaction_state;
+
             if (transaction_ongoing = '0') then
+              master_state <= TRANSACTION_HEADER;   -- NB: Hack!
               transaction_state <= TRANSACTION_HEADER;
             end if;
           end if;
