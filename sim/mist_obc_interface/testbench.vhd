@@ -53,8 +53,7 @@ architecture arch of testbench is
   type t_master_state is (
     IDLE,
 
-    PREP_TRANSACTION_HEADER,
-    SEND_TRANSACTION_HEADER,
+    TRANSACTION_HEADER,
 
     PREP_F_ACK,
     PREP_T_ACK,
@@ -282,19 +281,19 @@ begin
             delay_count_done_p <= '1';
             delay_count <= 0;
             if (transaction_ongoing = '0') then
-              transaction_state <= PREP_TRANSACTION_HEADER;
+              transaction_state <= TRANSACTION_HEADER;
             end if;
           end if;
           
-        when PREP_TRANSACTION_HEADER =>
+        when TRANSACTION_HEADER =>
           header_buf(47 downto 40) <= CUBES_I2C_ADDR & '0';
           header_buf(39 downto 32) <= fid & opcode;
           header_buf(31 downto  0) <= dl;
           master_tx_start_p <= '1';
-          master_state <= SEND_TRANSACTION_HEADER;
+          master_state <= SEND_HEADER_FRAME;
           transaction_ongoing <= '1';
           
-        when SEND_TRANSACTION_HEADER =>
+        when SEND_HEADER_FRAME =>
           if (master_tx_ready_p = '1') then
             master_tx_data <= header_buf(47 downto 40);
             header_buf <= header_buf(39 downto 0) & x"00";
