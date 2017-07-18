@@ -59,6 +59,7 @@ architecture arch of testbench is
     SEND_F_ACK,
     SEND_T_ACK,
     SEND_HEADER_FRAME,
+    PREP_NEXT_HEADER_BYTE,
     
     RECEIVE_F_ACK,
     RECEIVE_T_ACK,
@@ -319,6 +320,7 @@ begin
       frame_byte_count <= (others => '0');
       header_buf <= (others => '0');
       
+      master_tx_data <= (others => '0');
       master_tx_start_p <= '0';
       master_tx_ready_d0 <= '0';
       master_tx_ready_p <= '0';
@@ -365,6 +367,7 @@ begin
           fid_prev <= fid_ext;
           dl <= dl_ext;
           master_tx_start_p <= '1';
+          master_tx_data <= CUBES_I2C_ADDR & '0';
           master_state <= SEND_HEADER_FRAME;
           trans_active <= '1';
           
@@ -420,9 +423,9 @@ begin
         ------------------------------------------------------------------------
         when SEND_HEADER_FRAME =>
           if (master_tx_ready_p = '1') then
-            master_tx_data <= header_buf(47 downto 40);
             header_buf <= header_buf(39 downto 0) & x"00";
             frame_byte_count <= frame_byte_count + 1;
+            master_state <= PREP_NEXT_HEADER_BYTE;
             if (frame_byte_count = 6) then
               master_state <= IDLE;
               case opcode is
@@ -431,11 +434,13 @@ begin
                 when others =>
                   trans_state <= IDLE;
               end case;
-            else
-              master_tx_start_p <= '1';
             end if;
           end if;
-          
+        
+        when PREP_NEXT_HEADER_BYTE =>
+          master_tx_data <= header_buf(47 downto 40);
+          master_tx_start_p <= '1';
+          master_state <= SEND_HEADER_FRAME;
         
         when DATA_FRAME_TX =>
           if (master_tx_ready_p = '1') then
