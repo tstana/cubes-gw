@@ -55,12 +55,18 @@ architecture arch of testbench is
 
     TRANSACTION_HEADER,
 
-    PREP_F_ACK,
-    PREP_T_ACK,
+    SEND_F_ACK,
+    SEND_T_ACK,
     SEND_HEADER_FRAME,
     
+    RECEIVE_F_ACK,
+    RECEIVE_T_ACK,
+    
     RECEIVE_DATA_FRAME,
+    DATA_FRAME_RX,
     SEND_DATA_FRAME,
+    DATA_FRAME_TX,
+    
     APPLY_DATA_FRAME
   );
   
@@ -152,6 +158,9 @@ architecture arch of testbench is
   -- Clock, reset signals
   signal clk_100meg, rst_n          : std_logic;
   
+  -- Error signal
+  signal ERROR                      : std_logic;
+  
   -- Master-side UART signals
   signal master_txd, master_rxd     : std_logic;
   signal master_tx_data             : std_logic_vector(7 downto 0);
@@ -166,21 +175,27 @@ architecture arch of testbench is
   
   -- MSP signals
   signal master_state               : t_master_state;
-  signal transaction_state          : t_master_state;
-  signal transaction_ongoing        : std_logic;
+  signal trans_state                : t_master_state;
+  signal trans_active               : std_logic;
   
-  signal header_buf                 : std_logic_vector(47 downto 0);
-  
-  signal opcode                     : std_logic_vector( 6 downto 0);
-  signal fid                        : std_logic;
-  signal dl                         : std_logic_vector(31 downto 0);
+  signal opcode, opcode_ext         : std_logic_vector( 6 downto 0);
+  signal fid, fid_prev,fid_ext      : std_logic;
+  signal dl, dl_ext                 : std_logic_vector(31 downto 0);
   
   signal frame_byte_count           : unsigned(31 downto 0);
+  signal data_byte_count            : unsigned(31 downto 0);
+  signal nr_data_bytes              : unsigned(31 downto 0);
+  
+  signal header_buf                 : std_logic_vector(47 downto 0);
+  signal data_buf                   : std_logic_vector(47 downto 0);
   
   -- 1us counter between transactions
   signal delay_count                : natural;
   signal delay_count_done_p         : std_logic;
   signal first_run                  : boolean := true;
+  
+  -- Stimuli signals
+  signal leds_setting               : std_logic_vector(7 downto 0);
   
 --==============================================================================
 --  architecture begin
@@ -242,9 +257,11 @@ begin
   P_FSM : process (clk_100meg, rst_n)
   begin
     if (rst_n = '0') then
+      ERROR <= '0';
+    
       master_state <= IDLE;
-      transaction_state <= IDLE;
-      transaction_ongoing <= '0';
+      trans_state <= IDLE;
+      trans_active <= '0';
       
       delay_count <= 0;
       delay_count_done_p <= '0';
@@ -278,22 +295,79 @@ begin
           if (delay_count = INTER_FRAME_DELAY) then
             delay_count_done_p <= '1';
             delay_count <= 0;
-            master_state <= transaction_state;
+            master_state <= trans_state;
 
-            if (transaction_ongoing = '0') then
+            if (trans_active = '0') then
               master_state <= TRANSACTION_HEADER;   -- NB: Hack!
-              transaction_state <= TRANSACTION_HEADER;
+              trans_state <= TRANSACTION_HEADER;
             end if;
           end if;
           
+        ------------------------------------------------------------------------
+        -- Dedicated frame states
+        ------------------------------------------------------------------------
         when TRANSACTION_HEADER =>
           header_buf(47 downto 40) <= CUBES_I2C_ADDR & '0';
-          header_buf(39 downto 32) <= fid & opcode;
-          header_buf(31 downto  0) <= dl;
+          header_buf(39 downto 32) <= fid_ext & opcode_ext;
+          header_buf(31 downto  0) <= dl_ext;
+          opcode <= opcode_ext;
+          fid <= fid_ext;
+          fid_prev <= fid_ext;
+          dl <= dl_ext;
           master_tx_start_p <= '1';
           master_state <= SEND_HEADER_FRAME;
-          transaction_ongoing <= '1';
+          trans_active <= '1';
           
+        when RECEIVE_F_ACK =>
+          if (master_rx_ready_p = '1') then
+            frame_byte_count <= frame_byte_count + 1;
+            if (frame_byte_count = 0) then
+              fid <= master_rx_data(7);
+              opcode <= master_rx_data(6 downto 0);
+            elsif (frame_byte_count < 4) then
+              dl <= dl(23 downto 0) & master_rx_data;
+            elsif (frame_byte_count = 8) then
+              if (opcode = OP_F_ACK) and (fid = fid_prev) then
+                master_state <= IDLE;
+                data_byte_count <= unsigned(dl);
+                trans_state <= SEND_DATA_FRAME;
+              else
+                ERROR <= '1';
+              end if;
+            end if;
+          end if;
+
+        when RECEIVE_T_ACK =>
+          if (master_rx_ready_p = '1') then
+            frame_byte_count <= frame_byte_count + 1;
+            if (frame_byte_count = 0) then
+              fid <= master_rx_data(7);
+              opcode <= master_rx_data(6 downto 0);
+            elsif (frame_byte_count < 4) then
+              dl <= dl(23 downto 0) & master_rx_data;
+            elsif (frame_byte_count = 8) then
+              if (opcode = OP_T_ACK) and (fid = fid_prev) then
+                master_state <= IDLE;
+                data_byte_count <= unsigned(dl);
+                trans_state <= IDLE;
+                trans_active <= '0';
+              else
+                ERROR <= '1';
+              end if;
+            end if;
+          end if;
+
+        when SEND_DATA_FRAME =>
+          data_buf(47 downto 40) <= CUBES_I2C_ADDR & '0';
+          data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
+          data_buf(31 downto  8) <= (others => '0');
+          data_buf( 7 downto  0) <= leds_setting;         -- TODO: Change me!!!
+          nr_data_bytes <= to_unsigned(4, nr_data_bytes'length);
+          master_state <= DATA_FRAME_TX;
+
+        ------------------------------------------------------------------------
+        -- Common states shared between frames
+        ------------------------------------------------------------------------
         when SEND_HEADER_FRAME =>
           if (master_tx_ready_p = '1') then
             master_tx_data <= header_buf(47 downto 40);
@@ -301,13 +375,34 @@ begin
             frame_byte_count <= frame_byte_count + 1;
             if (frame_byte_count = 6) then
               master_state <= IDLE;
-              transaction_state <= IDLE;
-              transaction_ongoing <= '0';
+              case opcode is
+                when OP_SET_LEDS =>
+                  trans_state <= RECEIVE_F_ACK;
+                when others =>
+                  trans_state <= IDLE;
+              end case;
             else
               master_tx_start_p <= '1';
             end if;
           end if;
           
+        
+        when DATA_FRAME_TX =>
+          if (master_tx_ready_p = '1') then
+            data_buf <= data_buf(39 downto 0) & x"00";
+            frame_byte_count <= frame_byte_count + 1;
+            if (frame_byte_count > 1) then
+              data_byte_count <= data_byte_count - 1;
+              if (frame_byte_count = 2 + nr_data_bytes) then
+                trans_state <= RECEIVE_T_ACK;
+                master_state <= IDLE;
+              end if;
+            end if;
+          end if;
+          
+        ------------------------------------------------------------------------
+        -- Catch-all
+        ------------------------------------------------------------------------
         when others =>
           master_state <= IDLE;
           
@@ -322,9 +417,10 @@ begin
   P_STIM : process
   begin
     wait until rst_n = '0';
-    opcode <= OP_SET_LEDS;
-    fid <= '0';
-    dl <= std_logic_vector(to_unsigned(4, 32));
+    opcode_ext <= OP_SET_LEDS;
+    fid_ext <= '0';
+    dl_ext <= std_logic_vector(to_unsigned(4, 32));
+    leds_setting <= x"ff";
     wait;
   end process P_STIM;
 
