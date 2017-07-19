@@ -428,7 +428,7 @@ begin
             header_buf <= header_buf(31 downto 0) & x"00";
             frame_byte_count <= frame_byte_count + 1;
             master_state <= PREP_NEXT_HEADER_BYTE;
-            if (frame_byte_count = 6) then
+            if (frame_byte_count = 5) then
               master_state <= IDLE;
               case opcode is
                 when OP_SET_LEDS =>
