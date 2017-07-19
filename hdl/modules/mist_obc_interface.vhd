@@ -86,20 +86,34 @@ architecture behav of mist_obc_interface is
   --============================================================================
   -- Type declarations
   --============================================================================
-  type t_state is (
+  type t_trans_state is (
     IDLE,
-    TRANSACTION_HEADER,
+    
+    TRANS_HEADER,
 
-    PREP_F_ACK,
-    PREP_T_ACK,
-    SEND_HEADER_FRAME,
+    RX_F_ACK,
+    RX_T_ACK,
     
-    RECEIVE_DATA_FRAME,
-    SEND_DATA_FRAME,
-    APPLY_DATA_FRAME,
+    TX_F_ACK,
+    TX_T_ACK,
+
+    RX_HEADER_FRAME,
+    TX_HEADER_FRAME,
+
+    TX_DATA_FRAME,
+    RX_DATA_FRAME,
+
+    APPLY_DATA_FRAME
+  );
+  
+  type t_frame_state is (
+    WAIT_I2C_ADDR,
     
-    UART_TX_START,
-    WB_CYCLE
+    RX_HEADER_BYTES,
+    TX_HEADER_BYTES,
+
+    RX_DATA_BYTE,
+    TX_DATA_BYTE
   );
 
   --============================================================================
@@ -126,19 +140,18 @@ architecture behav of mist_obc_interface is
   constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
 
   -- MSP operations
-  constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
-  constant OP_DATA_FRAME            : std_logic_vector(6 downto 0) := to7bits(x"01");
-  constant OP_F_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"02");
-  constant OP_T_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"03");
-  constant OP_READ_ALL_REGS         : std_logic_vector(6 downto 0) := to7bits(x"11");
-  constant OP_GET_CUBES_ID          : std_logic_vector(6 downto 0) := to7bits(x"40");
-  constant OP_SET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"41");
-  constant OP_GET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"42");
-  constant OP_SIPHRA_REG_OP         : std_logic_vector(6 downto 0) := to7bits(x"43");
-  constant OP_GET_SIPHRA_DATAR      : std_logic_vector(6 downto 0) := to7bits(x"44");
-  constant OP_GET_SIPHRA_ADCR       : std_logic_vector(6 downto 0) := to7bits(x"45");
-  constant OP_GET_CH_REG_MASK       : std_logic_vector(6 downto 4) := to3bits(x"5");
-  constant OP_NONE                  : std_logic_vector(6 downto 0) := to7bits(x"ff");
+  constant OP_NULL            : std_logic_vector(6 downto 0) := to7bits(x"00");
+  constant OP_DATA_FRAME      : std_logic_vector(6 downto 0) := to7bits(x"01");
+  constant OP_F_ACK           : std_logic_vector(6 downto 0) := to7bits(x"02");
+  constant OP_T_ACK           : std_logic_vector(6 downto 0) := to7bits(x"03");
+  constant OP_READ_ALL_REGS   : std_logic_vector(6 downto 0) := to7bits(x"11");
+  constant OP_GET_CUBES_ID    : std_logic_vector(6 downto 0) := to7bits(x"40");
+  constant OP_SET_LEDS        : std_logic_vector(6 downto 0) := to7bits(x"41");
+  constant OP_GET_LEDS        : std_logic_vector(6 downto 0) := to7bits(x"42");
+  constant OP_SIPHRA_REG_OP   : std_logic_vector(6 downto 0) := to7bits(x"43");
+  constant OP_GET_SIPHRA_DATAR: std_logic_vector(6 downto 0) := to7bits(x"44");
+  constant OP_GET_SIPHRA_ADCR : std_logic_vector(6 downto 0) := to7bits(x"45");
+  constant OP_GET_CH_REG_MASK : std_logic_vector(6 downto 4) := to3bits(x"5");
 
   --============================================================================
   -- Component declarations
@@ -179,9 +192,9 @@ architecture behav of mist_obc_interface is
   --============================================================================
   -- Signal declarations
   --============================================================================
-  signal state                  : t_state;
-  signal state_d0               : t_state; -- one clock cycle delayed
-  signal trans_state            : t_state; -- next state while in transaction
+  -- State signals for FSMs
+  signal frame_state            : t_frame_state;
+  signal trans_state            : t_trans_state;
   
   -- I2C signals
   signal i2c_tx_byte            : std_logic_vector(7 downto 0);
@@ -199,13 +212,17 @@ architecture behav of mist_obc_interface is
   signal tx_start_p             : std_logic;
 
   -- OBC protocol signals
-  signal fid, fid_prev, tid     : std_logic;
-  signal opcode                 : std_logic_vector(6 downto 0);
-  signal current_op             : std_logic_vector(6 downto 0);
-  signal data_len               : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
-  signal data_byte_count        : unsigned(OBC_DL_WIDTH-1 downto 0);
+  signal rx_fid, tx_fid         : std_logic;
+  signal fid_prev               : std_logic;
+  signal tid                    : std_logic;
+  signal rx_opcode, tx_opcode   : std_logic_vector(6 downto 0);
+  signal rx_data_len            : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
+  signal tx_data_len            : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
+  
+  signal frame_rxed_p           : std_logic;
+  signal frame_txed_p           : std_logic;
   signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
-  signal nr_data_bytes          : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  signal trans_byte_count       : unsigned(OBC_DL_WIDTH-1 downto 0);
   
   signal data_buf               : std_logic_vector(7 downto 0);
   signal data_buf_addr          : unsigned(8 downto 0);   -- NB: Needs constant!!!
@@ -219,7 +236,7 @@ begin
   --============================================================================
   -- Instantiate I2C slave module
   --============================================================================
-  cmp_i2c_slave : mist_uart_wrapper
+  U_HW_COMM : mist_uart_wrapper
     port map
     (
       -- Clock, reset
@@ -250,6 +267,154 @@ begin
       r_done_p_o      => i2c_r_done_p,
       w_done_p_o      => i2c_w_done_p
     );
+
+  --============================================================================
+  -- Transaction FSM - handles sending of frames within a transaction
+  --============================================================================
+  P_TRANS_FSM : process (clk_i, rst_n_a_i) is
+  begin
+    if (rst_n_a_i = '0') then
+      trans_state <= IDLE;
+      
+    elsif rising_edge(clk_i) then
+      
+      case trans_state is
+        when IDLE =>
+          if (i2c_addr_match_p = '1') then
+            trans_state <= TRANS_HEADER;
+          end if;
+          
+        when TRANS_HEADER =>
+          if (frame_rxed_p = '1') then
+            case rx_opcode is
+              when OP_SET_LEDS =>
+                trans_state <= TX_F_ACK;
+              when others =>
+                trans_state <= TX_T_ACK;
+            end case;
+          end if;
+          
+        when RX_F_ACK =>
+          if (frame_rxed_p = '1') then
+            if (trans_byte_count /= 0) then
+              trans_state <= TX_DATA_FRAME;
+            end if;
+          end if;
+          
+        when TX_F_ACK =>
+          if (frame_txed_p = '1') then
+            if (trans_byte_count /= 0) then
+              trans_state <= RX_DATA_FRAME;
+            end if;
+          end if;
+          
+        when TX_DATA_FRAME =>
+          if (frame_txed_p = '1') then
+            if (trans_byte_count = 0) then
+              trans_state <= RX_T_ACK;
+            else
+              trans_state <= RX_F_ACK;
+            end if;
+          end if;
+          
+        when RX_T_ACK =>
+          if (frame_rxed_p = '1') then
+            trans_state <= IDLE;
+          end if;
+          
+        when TX_T_ACK =>
+          if (frame_txed_p = '1') then
+            trans_state <= IDLE;
+          end if;
+          
+        when others =>
+          trans_state <= IDLE;
+          
+      end case;
+      
+    end if;
+  end process;
+
+  --============================================================================
+  -- Frame FSM - handles sending of bytes within a frame
+  --============================================================================
+  P_FRAME_FSM : process (clk_i, rst_n_a_i)
+  begin
+    if (rst_n_a_i = '0') then
+      frame_state <= WAIT_I2C_ADDR;
+      
+      frame_rxed_p <= '0';
+      frame_txed_p <= '0';
+      
+      uart_wrapper_stop_p <= '0';
+      
+      frame_byte_count <= (others => '0');
+      trans_byte_count <= (others => '0');
+      
+      rx_fid <= '0';
+      tid <= '0';
+      fid_prev <= '0';
+      rx_opcode <= (others => '0');
+      rx_data_len <= (others => '0');
+      
+    elsif rising_edge(clk_i) then
+    
+      frame_rxed_p <= '0';
+      frame_txed_p <= '0';
+      
+      uart_wrapper_stop_p <= '0';
+      
+      case frame_state is
+      
+        when WAIT_I2C_ADDR =>
+          frame_byte_count <= (others => '0');
+          if (i2c_addr_match_p = '1') then
+            case trans_state is
+              when IDLE =>
+                frame_state <= RX_HEADER_BYTES;
+              when RX_F_ACK =>
+                frame_state <= RX_HEADER_BYTES;
+              when TX_F_ACK =>
+                frame_state <= TX_HEADER_BYTES;
+              when others =>
+                null;
+            end case;
+          end if;
+          
+        when RX_HEADER_BYTES =>
+          if (i2c_r_done_p = '1') then
+            frame_byte_count <= frame_byte_count + 1;
+            if (frame_byte_count = 0) then
+              rx_fid <= i2c_rx_byte(7);
+              if (trans_state = TRANS_HEADER) then
+                tid <= i2c_rx_byte(7);
+              end if;
+              rx_opcode <= i2c_rx_byte(6 downto 0);
+            elsif (frame_byte_count < 5) then
+              rx_data_len <= rx_data_len(OBC_DL_WIDTH-9 downto 0) & i2c_rx_byte;
+            else
+              trans_byte_count <= unsigned(rx_data_len);
+              -- TODO: Check here for correct FID and signal error otherwise.
+              fid_prev <= rx_fid;
+
+              frame_rxed_p <= '1';
+              
+              ------------------------
+              -- TODO: Remove for I2C
+              ------------------------
+              uart_wrapper_stop_p <= '1';
+              ------------------------
+              frame_state <= WAIT_I2C_ADDR;
+            end if;
+          end if;
+          
+        when others =>
+          frame_state <= WAIT_I2C_ADDR;   -- TODO: Different state on error?
+          
+      end case;
+      
+    end if;
+  end process;
 
 end architecture behav;
 --==============================================================================
