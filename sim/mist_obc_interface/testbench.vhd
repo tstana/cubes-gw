@@ -195,10 +195,6 @@ architecture arch of testbench is
       err_p_o     : out std_logic;
       wdto_p_o    : out std_logic;
 
-      -- Wishbone master signals
-      wbm_i       : in  t_wishbone_master_in;
-      wbm_o       : out t_wishbone_master_out;
-      
       -- TEMPORARY: UART RX and TX
       rxd_i       : in  std_logic;
       txd_o       : out std_logic
@@ -511,10 +507,6 @@ begin
     err_p_o     => open,
     wdto_p_o    => open,
 
-    -- Wishbone master signals
-    wbm_i       => cc_dummy_master_in,
-    wbm_o       => open,
-    
     -- TEMPORARY: UART RX and TX
     rxd_i       => master_txd,
     txd_o       => master_rxd
