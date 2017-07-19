@@ -16,13 +16,13 @@ add wave -noupdate -divider DUT
 add wave -noupdate /testbench/U_DUT/state
 add wave -noupdate /testbench/U_DUT/state_d0
 add wave -noupdate /testbench/U_DUT/trans_state
+add wave -noupdate /testbench/U_DUT/tx_start_p
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_tx_byte
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_rx_byte
 add wave -noupdate /testbench/U_DUT/i2c_addr_match_p
 add wave -noupdate /testbench/U_DUT/i2c_op
 add wave -noupdate /testbench/U_DUT/i2c_r_done_p
 add wave -noupdate /testbench/U_DUT/i2c_w_done_p
-add wave -noupdate /testbench/U_DUT/tx_start_p
 add wave -noupdate /testbench/U_DUT/fid
 add wave -noupdate /testbench/U_DUT/fid_prev
 add wave -noupdate /testbench/U_DUT/tid
