@@ -183,7 +183,7 @@ begin
   p_w_done : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
-      tx_ready_d0 <= '0';
+      tx_ready_d0 <= '1';
       w_done_p_o  <= '0';
     elsif rising_edge(clk_i) then
       tx_ready_d0 <= tx_ready;
@@ -194,7 +194,7 @@ begin
   p_r_done : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
-      rx_ready_d0 <= '0';
+      rx_ready_d0 <= '1';
       r_done_p    <= '0';
     elsif rising_edge(clk_i) then
       rx_ready_d0 <= rx_ready;
