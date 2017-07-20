@@ -42,6 +42,9 @@ add wave -noupdate /testbench/U_DUT/frame_txed_p
 add wave -noupdate /testbench/U_DUT/tx_start_p
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_tx_byte
 add wave -noupdate /testbench/U_DUT/i2c_w_done_p
+add wave -noupdate -radix hexadecimal /testbench/U_DUT/data_buf
+add wave -noupdate -radix hexadecimal /testbench/U_DUT/data_buf_addr
+add wave -noupdate /testbench/U_DUT/data_buf_write_p
 TreeUpdate [SetDefaultTree]
 WaveRestoreCursors {{Cursor 1} {1161321990 ps} 0}
 quietly wave cursor active 1
