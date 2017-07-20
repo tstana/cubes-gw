@@ -6,10 +6,15 @@ add wave -noupdate /testbench/trans_active
 add wave -noupdate /testbench/master_state
 add wave -noupdate /testbench/trans_state
 add wave -noupdate /testbench/master_tx_ready
-add wave -noupdate /testbench/master_rx_ready
+add wave -noupdate -radix hexadecimal /testbench/master_tx_data
 add wave -noupdate -radix hexadecimal /testbench/header_buf
 add wave -noupdate /testbench/master_tx_start_p
 add wave -noupdate -radix unsigned /testbench/frame_byte_count
+add wave -noupdate /testbench/master_rx_ready
+add wave -noupdate -radix hexadecimal /testbench/master_rx_data
+add wave -noupdate -radix hexadecimal /testbench/opcode
+add wave -noupdate /testbench/fid
+add wave -noupdate -radix unsigned /testbench/dl
 add wave -noupdate -divider ERROR
 add wave -noupdate /testbench/ERROR
 add wave -noupdate -divider DUT
@@ -25,6 +30,7 @@ add wave -noupdate -radix hexadecimal /testbench/U_DUT/rx_opcode
 add wave -noupdate -radix unsigned /testbench/U_DUT/rx_data_len
 add wave -noupdate /testbench/U_DUT/fid_prev
 add wave -noupdate /testbench/U_DUT/tid
+add wave -noupdate -radix unsigned /testbench/U_DUT/trans_byte_count
 add wave -noupdate -radix unsigned /testbench/U_DUT/frame_byte_count
 add wave -noupdate /testbench/U_DUT/tx_start_p
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_tx_byte

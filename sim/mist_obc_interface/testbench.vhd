@@ -228,7 +228,7 @@ architecture arch of testbench is
   signal trans_active               : std_logic;
   
   signal opcode, opcode_ext         : std_logic_vector( 6 downto 0);
-  signal fid, fid_prev,fid_ext      : std_logic;
+  signal fid, fid_prev, fid_ext     : std_logic;
   signal dl, dl_ext                 : std_logic_vector(31 downto 0);
   
   signal frame_byte_count           : unsigned(31 downto 0);
@@ -325,6 +325,11 @@ begin
       master_rx_ready_d0 <= '0';
       master_rx_ready_p <= '0';
       
+      opcode <= (others => '0');
+      fid <= '0';
+      fid_prev <= '0';
+      dl <= (others => '0');
+      
     elsif rising_edge(clk_100meg) then
     
       delay_count_done_p <= '0';
@@ -382,7 +387,7 @@ begin
               opcode <= master_rx_data(6 downto 0);
             elsif (frame_byte_count < 4) then
               dl <= dl(23 downto 0) & master_rx_data;
-            elsif (frame_byte_count = 8) then
+            else
               if (opcode = OP_F_ACK) and (fid = fid_prev) then
                 master_state <= IDLE;
                 data_byte_count <= unsigned(dl);
@@ -428,7 +433,7 @@ begin
             header_buf <= header_buf(31 downto 0) & x"00";
             frame_byte_count <= frame_byte_count + 1;
             master_state <= PREP_NEXT_HEADER_BYTE;
-            if (frame_byte_count = 5) then
+            if (frame_byte_count = 4) then
               master_state <= IDLE;
               case opcode is
                 when OP_SET_LEDS =>
@@ -476,7 +481,7 @@ begin
     wait until rst_n = '0';
     opcode_ext <= OP_SET_LEDS;
     fid_ext <= '0';
-    dl_ext <= std_logic_vector(to_unsigned(4, 32));
+    dl_ext <= x"00000004";
     leds_setting <= x"ff";
     wait;
   end process P_STIM;
