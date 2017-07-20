@@ -228,7 +228,7 @@ architecture arch of testbench is
   signal trans_active               : std_logic;
   
   signal opcode, opcode_ext         : std_logic_vector( 6 downto 0);
-  signal fid, fid_prev, fid_ext     : std_logic;
+  signal fid, fid_prev, fid_ext, tid: std_logic;
   signal dl, dl_ext                 : std_logic_vector(31 downto 0);
   
   signal frame_byte_count           : unsigned(31 downto 0);
@@ -331,6 +331,7 @@ begin
       opcode <= (others => '0');
       fid <= '0';
       fid_prev <= '0';
+      tid <= '0';
       dl <= (others => '0');
       
     elsif rising_edge(clk_100meg) then
@@ -383,6 +384,7 @@ begin
           header_buf(31 downto  0) <= dl_ext;
           opcode <= opcode_ext;
           fid <= fid_ext;
+          tid <= fid_ext;
           fid_prev <= fid_ext;
           dl <= dl_ext;
           case opcode_ext is
@@ -421,7 +423,7 @@ begin
             elsif (frame_byte_count < 4) then
               dl <= dl(23 downto 0) & master_rx_data;
             else
-              if (opcode = OP_T_ACK) and (fid = fid_prev) then
+              if (opcode = OP_T_ACK) and (fid = tid) then
                 master_state <= IDLE;
                 data_byte_count <= unsigned(dl);
                 trans_state <= IDLE;

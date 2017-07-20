@@ -395,8 +395,13 @@ begin
                 frame_state <= RX_HEADER_BYTES;
               when TX_F_ACK =>
                 frame_state <= TX_HEADER_BYTES;
-                tx_data_len <= std_logic_vector(to_unsigned(15, tx_data_len'length)); -- (others => '0');
+                tx_data_len <= (others => '0');
                 i2c_tx_byte <= fid_prev & OP_F_ACK;
+                tx_start_p <= '1';
+              when TX_T_ACK =>
+                frame_state <= TX_HEADER_BYTES;
+                tx_data_len <= (others => '0');
+                i2c_tx_byte <= tid & OP_T_ACK;
                 tx_start_p <= '1';
               when RX_DATA_FRAME =>
                 frame_state <= RX_DATA_BYTES;
