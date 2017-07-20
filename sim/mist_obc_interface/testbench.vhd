@@ -236,7 +236,7 @@ architecture arch of testbench is
   signal nr_data_bytes              : unsigned(31 downto 0);
   
   signal header_buf                 : std_logic_vector(39 downto 0);
-  signal data_buf                   : std_logic_vector(47 downto 0);
+  signal data_buf                   : std_logic_vector(39 downto 0);
   
   -- 1us counter between transactions
   signal delay_count                : natural;
@@ -317,6 +317,9 @@ begin
       
       frame_byte_count <= (others => '0');
       header_buf <= (others => '0');
+      data_buf <= (others => '0');
+      data_byte_count <= (others => '0');
+      nr_data_bytes <= (others => '0');
       
       master_tx_data <= (others => '0');
       master_tx_start_p <= '0';
@@ -418,13 +421,6 @@ begin
             end if;
           end if;
 
-        when SEND_DATA_FRAME =>
-          data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
-          data_buf(31 downto  8) <= (others => '0');
-          data_buf( 7 downto  0) <= leds_setting;         -- TODO: Change me!!!
-          nr_data_bytes <= to_unsigned(4, nr_data_bytes'length);
-          master_state <= DATA_FRAME_TX;
-
         ------------------------------------------------------------------------
         -- Common states shared between frames
         ------------------------------------------------------------------------
@@ -449,11 +445,21 @@ begin
           master_tx_start_p <= '1';
           master_state <= SEND_HEADER_FRAME;
         
+        when SEND_DATA_FRAME =>
+          data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
+          data_buf(31 downto  8) <= (others => '0');
+          data_buf( 7 downto  0) <= leds_setting;         -- TODO: Change me!!!
+          nr_data_bytes <= to_unsigned(4, nr_data_bytes'length);
+          master_state <= DATA_FRAME_TX;
+          master_tx_start_p <= '1';
+
         when DATA_FRAME_TX =>
           if (master_tx_ready_p = '1') then
-            data_buf <= data_buf(39 downto 0) & x"00";
             frame_byte_count <= frame_byte_count + 1;
-            if (frame_byte_count > 1) then
+            data_buf <= data_buf(31 downto 0) & x"00";
+            master_tx_data <= data_buf(39 downto 32);
+            master_tx_start_p <= '1';
+            if (frame_byte_count > 0) then
               data_byte_count <= data_byte_count - 1;
               if (frame_byte_count = 2 + nr_data_bytes) then
                 trans_state <= RECEIVE_T_ACK;

@@ -112,8 +112,8 @@ architecture behav of mist_obc_interface is
     RX_HEADER_BYTES,
     TX_HEADER_BYTES,
 
-    RX_DATA_BYTE,
-    TX_DATA_BYTE
+    RX_DATA_BYTES,
+    TX_DATA_BYTES
   );
 
   --============================================================================
@@ -308,6 +308,15 @@ begin
             end if;
           end if;
           
+        when RX_DATA_FRAME =>
+          if (frame_rxed_p = '1') then
+            if (trans_byte_count = 0) then
+              trans_state <= TX_T_ACK;
+            else
+              trans_state <= TX_F_ACK;
+            end if;
+          end if;
+
         when TX_DATA_FRAME =>
           if (frame_txed_p = '1') then
             if (trans_byte_count = 0) then
@@ -360,13 +369,19 @@ begin
       rx_opcode <= (others => '0');
       rx_data_len <= (others => '0');
       
+      data_buf <= (others => '0');
+      data_buf_addr <= (others => '0');
+      data_buf_write_p <= '0';
+
     elsif rising_edge(clk_i) then
-    
+   
       frame_rxed_p <= '0';
       frame_txed_p <= '0';
       
       uart_wrapper_stop_p <= '0';
       tx_start_p <= '0';
+      
+      data_buf_write_p <= '0';
       
       case frame_state is
       
@@ -383,6 +398,8 @@ begin
                 tx_data_len <= std_logic_vector(to_unsigned(15, tx_data_len'length)); -- (others => '0');
                 i2c_tx_byte <= fid_prev & OP_F_ACK;
                 tx_start_p <= '1';
+              when RX_DATA_FRAME =>
+                frame_state <= RX_DATA_BYTES;
               when others =>
                 null;
             end case;
@@ -435,13 +452,13 @@ begin
                 tx_opcode <= i2c_tx_byte(6 downto 0);
               end if;
               
-              -- DL field bytes
+              -- DL bytes
               if (frame_byte_count < 4) then
                 tx_data_len <= tx_data_len(OBC_DL_WIDTH-9 downto 0) & x"00";
                 i2c_tx_byte <= tx_data_len(OBC_DL_WIDTH-1 downto OBC_DL_WIDTH-8);
                 tx_start_p <= '1';
                 
-              -- FCS field bytes
+              -- FCS bytes
               -- else
               
               end if;
@@ -456,6 +473,38 @@ begin
 
             frame_txed_p <= '1';
             
+            ------------------------
+            -- TODO: Remove for I2C
+            ------------------------
+            uart_wrapper_stop_p <= '1';
+            ------------------------
+            frame_state <= WAIT_I2C_ADDR;
+          end if;
+          
+        when RX_DATA_BYTES =>
+          if (frame_byte_count < 4) then
+            if (i2c_r_done_p = '1') then
+              frame_byte_count <= frame_byte_count + 1;
+              
+              -- FID+OPCODE byte
+              if (frame_byte_count = 0) then
+                rx_fid <= i2c_rx_byte(7);
+                rx_opcode <= i2c_rx_byte(6 downto 0);
+                trans_byte_count <= trans_byte_count - 1;
+              -- DATA bytes
+              else
+                data_buf <= i2c_rx_byte;
+                data_buf_write_p <= '1';
+                data_buf_addr <= data_buf_addr + 1;
+                trans_byte_count <= trans_byte_count - 1;
+              -- FCS bytes here
+              end if;
+            end if;
+          else
+            -- TODO: Check here for correct FID and signal error otherwise.
+            fid_prev <= rx_fid;
+            
+            frame_rxed_p <= '1';
             ------------------------
             -- TODO: Remove for I2C
             ------------------------
