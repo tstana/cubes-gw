@@ -360,9 +360,15 @@ begin
           end if;
           
         when I2C_ADDR_BYTE =>
+          if (trans_state = SEND_DATA_FRAME) then
+            data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
+            data_buf(31 downto  8) <= (others => '0');
+            data_buf( 7 downto  0) <= leds_setting;    -- TODO: Change me!!!              
+          end if;
+
           if (master_tx_ready_p = '1') then
             master_state <= trans_state;
-
+            
             if (trans_active = '0') then
               master_state <= TRANSACTION_HEADER;   -- NB: Hack!
               trans_state <= TRANSACTION_HEADER;
@@ -451,12 +457,11 @@ begin
           master_state <= SEND_HEADER_FRAME;
         
         when SEND_DATA_FRAME =>
-          data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
-          data_buf(31 downto  8) <= (others => '0');
-          data_buf( 7 downto  0) <= leds_setting;         -- TODO: Change me!!!
           nr_data_bytes <= to_unsigned(4, nr_data_bytes'length);
           master_state <= DATA_FRAME_TX;
+          master_tx_data <= data_buf(39 downto 32);
           master_tx_start_p <= '1';
+          data_buf <= data_buf(31 downto 0) & x"00";
 
         when DATA_FRAME_TX =>
           if (master_tx_ready_p = '1') then

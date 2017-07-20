@@ -482,7 +482,7 @@ begin
           end if;
           
         when RX_DATA_BYTES =>
-          if (frame_byte_count < 4) then
+          if (frame_byte_count < 5) then
             if (i2c_r_done_p = '1') then
               frame_byte_count <= frame_byte_count + 1;
               
@@ -490,7 +490,6 @@ begin
               if (frame_byte_count = 0) then
                 rx_fid <= i2c_rx_byte(7);
                 rx_opcode <= i2c_rx_byte(6 downto 0);
-                trans_byte_count <= trans_byte_count - 1;
               -- DATA bytes
               else
                 data_buf <= i2c_rx_byte;
