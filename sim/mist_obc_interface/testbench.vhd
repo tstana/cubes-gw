@@ -379,6 +379,12 @@ begin
           fid <= fid_ext;
           fid_prev <= fid_ext;
           dl <= dl_ext;
+          case opcode_ext is
+            when OP_SET_LEDS =>
+              data_byte_count <= unsigned(dl_ext);
+            when others =>
+              null;
+          end case;
           master_state <= PREP_NEXT_HEADER_BYTE;
           trans_active <= '1';
           
@@ -393,7 +399,6 @@ begin
             else
               if (opcode = OP_F_ACK) and (fid = fid_prev) then
                 master_state <= IDLE;
-                data_byte_count <= unsigned(dl);
                 trans_state <= SEND_DATA_FRAME;
               else
                 ERROR <= '1';
@@ -409,7 +414,7 @@ begin
               opcode <= master_rx_data(6 downto 0);
             elsif (frame_byte_count < 4) then
               dl <= dl(23 downto 0) & master_rx_data;
-            elsif (frame_byte_count = 8) then
+            else
               if (opcode = OP_T_ACK) and (fid = fid_prev) then
                 master_state <= IDLE;
                 data_byte_count <= unsigned(dl);
@@ -459,11 +464,12 @@ begin
             data_buf <= data_buf(31 downto 0) & x"00";
             master_tx_data <= data_buf(39 downto 32);
             master_tx_start_p <= '1';
+            data_byte_count <= data_byte_count - 1;
             if (frame_byte_count > 0) then
-              data_byte_count <= data_byte_count - 1;
-              if (frame_byte_count = 2 + nr_data_bytes) then
+              if (frame_byte_count = nr_data_bytes) then
                 trans_state <= RECEIVE_T_ACK;
                 master_state <= IDLE;
+                master_tx_start_p <= '0';   -- HACK: Avoid redundant byte...
               end if;
             end if;
           end if;
