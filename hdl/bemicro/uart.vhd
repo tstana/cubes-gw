@@ -249,6 +249,8 @@ begin
       frame_err     <= '0';
       rx_sreg       <= (others => '0');
       rx_data_count <= (others => '0');
+      rx_data_o     <= (others => '0');
+      
     elsif rising_edge(clk_i) then
 
       case state_rx is
@@ -257,6 +259,7 @@ begin
           rx_data_count <= (others => '0');
           rx_baud_en    <= '0';
           rx_ready      <= '1';
+          rx_data_o     <= rx_sreg;
           if (rx_ready = '1') and (rx_sta = '1') then
             rx_baud_en    <= '1';
             rx_ready      <= '0';
@@ -309,16 +312,5 @@ begin
   -- Assign RX fabric-side outputs
   rx_ready_o  <= rx_ready;
   frame_err_o <= frame_err;
-
-  p_rx_data : process (clk_i, rst_n_a_i) is
-  begin
-    if (rst_n_a_i = '0') then
-      rx_data_o <= (others => '0');
-    elsif rising_edge(clk_i) then
-      if (rx_ready = '1') then
-        rx_data_o <= rx_sreg;
-      end if;
-    end if;
-  end process p_rx_data;
 
 end architecture behav;
