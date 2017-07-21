@@ -37,7 +37,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-use work.wishbone_pkg.all;
 use work.genram_pkg.all;
 
 
@@ -135,7 +134,7 @@ architecture behav of mist_obc_interface is
   -- MSP size defines
   constant OBC_MTU            : natural       := 507;
   constant OBC_DL_WIDTH       : natural       :=  32;
-  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH);
+  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH)-1;
   constant OBC_FCS_WIDTH      : natural       :=   0;
   constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
 
