@@ -4,9 +4,8 @@ add wave -noupdate -divider {Clock, reset}
 add wave -noupdate /testbench/clk_100meg
 add wave -noupdate /testbench/rst_n
 add wave -noupdate -divider Master
-add wave -noupdate /testbench/trans_active
-add wave -noupdate /testbench/master_state
 add wave -noupdate /testbench/trans_state
+add wave -noupdate /testbench/frame_state
 add wave -noupdate /testbench/master_tx_ready
 add wave -noupdate -radix hexadecimal /testbench/master_tx_data
 add wave -noupdate -radix hexadecimal /testbench/header_buf
@@ -62,4 +61,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits us
 update
-WaveRestoreZoom {0 ps} {2100 us}
+WaveRestoreZoom {0 ps} {3158267717 ps}
