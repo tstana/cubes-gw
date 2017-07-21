@@ -39,7 +39,6 @@ use ieee.numeric_std.all;
 
 library work;
 use work.genram_pkg.all;
-use work.wishbone_pkg.all;
 
 
 entity testbench is
@@ -51,29 +50,35 @@ architecture arch of testbench is
   --============================================================================
   -- Type declarations
   --============================================================================
-  type t_master_state is (
-    IDLE,
+  type t_frame_state is (
+    WAITING,
     
-    I2C_ADDR_BYTE,
+    I2C_ADDR,
 
-    TRANSACTION_HEADER,
+    TX_HEADER_BYTES,
+    RX_HEADER_BYTES,
 
-    SEND_F_ACK,
-    SEND_T_ACK,
-    SEND_HEADER_FRAME,
-    PREP_NEXT_HEADER_BYTE,
-    
-    RECEIVE_F_ACK,
-    RECEIVE_T_ACK,
-    
-    RECEIVE_DATA_FRAME,
-    DATA_FRAME_RX,
-    SEND_DATA_FRAME,
-    DATA_FRAME_TX,
-    
-    APPLY_DATA_FRAME
+    TX_DATA_BYTES,
+    RX_DATA_BYTES
   );
   
+  type t_trans_state is (
+    IDLE,
+    
+    TRANS_HEADER,
+    
+    RX_F_ACK,
+    TX_F_ACK,
+    RX_T_ACK,
+    TX_T_ACK,
+
+    RX_HEADER_FRAME,
+    TX_HEADER_FRAME,
+
+    TX_DATA_FRAME,
+    RX_DATA_FRAME
+  );
+
   --============================================================================
   -- Function declarations
   --============================================================================
@@ -86,18 +91,18 @@ architecture arch of testbench is
   begin
     return v(2 downto 0);
   end function;
-
+  
   --============================================================================
   -- Constant declarations
   --============================================================================
   constant CLK_PERIOD           : time := 10 ns;
-  constant RESET_PERIOD         : time := 45 ns;
+  constant RESET_PERIOD         : time := 45 us;
   
   constant BAUD_DIV_INT         : natural := 867;
   constant BAUD_DIV             : std_logic_vector :=
       std_logic_vector(to_unsigned(BAUD_DIV_INT, f_log2_size(BAUD_DIV_INT)));
       
-  constant INTER_FRAME_DELAY    : natural := 999;
+  constant INTER_FRAME_DELAY    : time := 1 us;
 
   -- I2C address of slave
   constant CUBES_I2C_ADDR       : std_logic_vector(6 downto 0) := to7bits(x"70");
@@ -105,7 +110,7 @@ architecture arch of testbench is
   -- MSP size defines
   constant OBC_MTU              : natural       := 507;
   constant OBC_DL_WIDTH         : natural       :=  32;
-  constant OBC_DL_NR_BYTES      : natural       := f_log2_size(OBC_DL_WIDTH);
+  constant OBC_DL_NR_BYTES      : natural       := f_log2_size(OBC_DL_WIDTH)-1;
   constant OBC_FCS_WIDTH        : natural       :=   0;
   constant OBC_FCS_NR_BYTES     : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
 
@@ -207,6 +212,10 @@ architecture arch of testbench is
   -- Clock, reset signals
   signal clk_100meg, rst_n          : std_logic;
   
+  -- Current state of master
+  signal frame_state               : t_frame_state;
+  signal trans_state               : t_trans_state;
+  
   -- Error signal
   signal ERROR                      : std_logic;
   
@@ -222,18 +231,14 @@ architecture arch of testbench is
   signal master_rx_ready_d0         : std_logic;
   signal master_rx_ready_p          : std_logic;
   
-  -- MSP signals
-  signal master_state               : t_master_state;
-  signal trans_state                : t_master_state;
-  signal trans_active               : std_logic;
+  -- MSP specific signals
+  signal fid, tid                   : std_logic;
+  signal opcode                     : std_logic_vector( 6 downto 0);
+  signal dl                         : std_logic_vector(31 downto 0);
   
-  signal opcode, opcode_ext         : std_logic_vector( 6 downto 0);
-  signal fid, fid_prev, fid_ext, tid: std_logic;
-  signal dl, dl_ext                 : std_logic_vector(31 downto 0);
-  
-  signal frame_byte_count           : unsigned(31 downto 0);
-  signal data_byte_count            : unsigned(31 downto 0);
-  signal nr_data_bytes              : unsigned(31 downto 0);
+  signal frame_byte_count           : natural;
+  signal data_byte_count            : natural;
+  signal nr_data_bytes              : natural;
   
   signal header_buf                 : std_logic_vector(39 downto 0);
   signal data_buf                   : std_logic_vector(39 downto 0);
@@ -302,209 +307,114 @@ begin
       frame_err_o   => open
     );
     
-  -- MSP master FSM
-  P_FSM : process (clk_100meg, rst_n)
-  begin
-    if (rst_n = '0') then
-      ERROR <= '0';
-    
-      master_state <= IDLE;
-      trans_state <= IDLE;
-      trans_active <= '0';
-      
-      delay_count <= 0;
-      delay_count_done_p <= '0';
-      
-      frame_byte_count <= (others => '0');
-      header_buf <= (others => '0');
-      data_buf <= (others => '0');
-      data_byte_count <= (others => '0');
-      nr_data_bytes <= (others => '0');
-      
-      master_tx_data <= (others => '0');
-      master_tx_start_p <= '0';
-      master_tx_ready_d0 <= '0';
-      master_tx_ready_p <= '0';
-      master_rx_ready_d0 <= '0';
-      master_rx_ready_p <= '0';
-      
-      opcode <= (others => '0');
-      fid <= '0';
-      fid_prev <= '0';
-      tid <= '0';
-      dl <= (others => '0');
-      
-    elsif rising_edge(clk_100meg) then
-    
-      delay_count_done_p <= '0';
-      
-      master_tx_start_p <= '0';
-      
-      master_tx_ready_d0 <= master_tx_ready;
-      master_tx_ready_p  <= master_tx_ready and (not master_tx_ready_d0);
-      master_rx_ready_d0 <= master_rx_ready;
-      master_rx_ready_p  <= master_rx_ready and (not master_rx_ready_d0);
-      
-      case master_state is
-        when IDLE =>
-          master_tx_start_p <= '0';
-          frame_byte_count <= (others => '0');
-
-          delay_count <= delay_count + 1;
-          if (delay_count = INTER_FRAME_DELAY) then
-            delay_count_done_p <= '1';
-            delay_count <= 0;
-            
-            master_tx_data <= CUBES_I2C_ADDR & '0';
-            master_tx_start_p <= '1';
-            master_state <= I2C_ADDR_BYTE;
-          end if;
-          
-        when I2C_ADDR_BYTE =>
-          if (trans_state = SEND_DATA_FRAME) then
-            data_buf(39 downto 32) <= (not fid_prev) & OP_DATA_FRAME;
-            data_buf(31 downto  8) <= (others => '0');
-            data_buf( 7 downto  0) <= leds_setting;    -- TODO: Change me!!!              
-          end if;
-
-          if (master_tx_ready_p = '1') then
-            master_state <= trans_state;
-            
-            if (trans_active = '0') then
-              master_state <= TRANSACTION_HEADER;   -- NB: Hack!
-              trans_state <= TRANSACTION_HEADER;
-            end if;
-          end if;
-          
-        ------------------------------------------------------------------------
-        -- Dedicated frame states
-        ------------------------------------------------------------------------
-        when TRANSACTION_HEADER =>
-          header_buf(39 downto 32) <= fid_ext & opcode_ext;
-          header_buf(31 downto  0) <= dl_ext;
-          opcode <= opcode_ext;
-          fid <= fid_ext;
-          tid <= fid_ext;
-          fid_prev <= fid_ext;
-          dl <= dl_ext;
-          case opcode_ext is
-            when OP_SET_LEDS =>
-              data_byte_count <= unsigned(dl_ext);
-            when others =>
-              null;
-          end case;
-          master_state <= PREP_NEXT_HEADER_BYTE;
-          trans_active <= '1';
-          
-        when RECEIVE_F_ACK =>
-          if (master_rx_ready_p = '1') then
-            frame_byte_count <= frame_byte_count + 1;
-            if (frame_byte_count = 0) then
-              fid <= master_rx_data(7);
-              opcode <= master_rx_data(6 downto 0);
-            elsif (frame_byte_count < 4) then
-              dl <= dl(23 downto 0) & master_rx_data;
-            else
-              if (opcode = OP_F_ACK) and (fid = fid_prev) then
-                master_state <= IDLE;
-                trans_state <= SEND_DATA_FRAME;
-              else
-                ERROR <= '1';
-              end if;
-            end if;
-          end if;
-
-        when RECEIVE_T_ACK =>
-          if (master_rx_ready_p = '1') then
-            frame_byte_count <= frame_byte_count + 1;
-            if (frame_byte_count = 0) then
-              fid <= master_rx_data(7);
-              opcode <= master_rx_data(6 downto 0);
-            elsif (frame_byte_count < 4) then
-              dl <= dl(23 downto 0) & master_rx_data;
-            else
-              if (opcode = OP_T_ACK) and (fid = tid) then
-                master_state <= IDLE;
-                data_byte_count <= unsigned(dl);
-                trans_state <= IDLE;
-                trans_active <= '0';
-              else
-                ERROR <= '1';
-              end if;
-            end if;
-          end if;
-
-        ------------------------------------------------------------------------
-        -- Common states shared between frames
-        ------------------------------------------------------------------------
-        when SEND_HEADER_FRAME =>
-          if (master_tx_ready_p = '1') then
-            header_buf <= header_buf(31 downto 0) & x"00";
-            frame_byte_count <= frame_byte_count + 1;
-            master_state <= PREP_NEXT_HEADER_BYTE;
-            if (frame_byte_count = 4) then
-              master_state <= IDLE;
-              case opcode is
-                when OP_SET_LEDS =>
-                  trans_state <= RECEIVE_F_ACK;
-                when others =>
-                  trans_state <= IDLE;
-              end case;
-            end if;
-          end if;
-        
-        when PREP_NEXT_HEADER_BYTE =>
-          master_tx_data <= header_buf(39 downto 32);
-          master_tx_start_p <= '1';
-          master_state <= SEND_HEADER_FRAME;
-        
-        when SEND_DATA_FRAME =>
-          nr_data_bytes <= to_unsigned(4, nr_data_bytes'length);
-          master_state <= DATA_FRAME_TX;
-          master_tx_data <= data_buf(39 downto 32);
-          master_tx_start_p <= '1';
-          data_buf <= data_buf(31 downto 0) & x"00";
-
-        when DATA_FRAME_TX =>
-          if (master_tx_ready_p = '1') then
-            frame_byte_count <= frame_byte_count + 1;
-            data_buf <= data_buf(31 downto 0) & x"00";
-            master_tx_data <= data_buf(39 downto 32);
-            master_tx_start_p <= '1';
-            data_byte_count <= data_byte_count - 1;
-            if (frame_byte_count > 0) then
-              if (frame_byte_count = nr_data_bytes) then
-                trans_state <= RECEIVE_T_ACK;
-                master_state <= IDLE;
-                master_tx_start_p <= '0';   -- HACK: Avoid redundant byte...
-              end if;
-            end if;
-          end if;
-          
-        ------------------------------------------------------------------------
-        -- Catch-all
-        ------------------------------------------------------------------------
-        when others =>
-          master_state <= IDLE;
-          
-      end case;
-      
-    end if;
-  end process P_FSM;
-
   --============================================================================
-  -- Stimuli
+  -- Stimuli and monitor processes
   --============================================================================
-  P_STIM : process
+  P_STIM : process is
+    
+    procedure pulse(signal sig_p : out std_logic) is
+    begin
+      sig_p <= '1';
+      wait until rising_edge(clk_100meg);
+      sig_p <= '0';
+    end procedure;
+    
+    procedure send_i2c_addr is
+    begin
+      frame_state <= I2C_ADDR;
+      master_tx_data <= CUBES_I2C_ADDR & '0';
+      pulse(master_tx_start_p);
+      wait until master_tx_ready = '1';
+    end procedure;
+    
+    procedure send_header(
+      opcode  : in std_logic_vector;
+      fid     : in std_logic;
+      dl      : in std_logic_vector
+    ) is
+    begin
+      frame_state <= TX_HEADER_BYTES;
+      
+      header_buf(39 downto 32) <= fid & opcode;
+      header_buf(31 downto  0) <= dl;
+      wait until rising_edge(clk_100meg);
+      
+      while (frame_byte_count < OBC_DL_NR_BYTES) loop
+        master_tx_data <= header_buf(39 downto 32);
+        header_buf <= header_buf(31 downto 0) & x"00";
+        pulse(master_tx_start_p);
+        wait until master_tx_ready = '1';
+        frame_byte_count <= frame_byte_count + 1;
+      end loop;
+      
+      frame_byte_count <= 0;
+      frame_state <= WAITING;
+    end procedure;
+    
+    procedure receive_header is
+    begin
+      frame_state <= RX_HEADER_BYTES;
+      
+      while (frame_byte_count < OBC_DL_NR_BYTES) loop
+        wait until master_rx_ready = '1';
+        frame_byte_count <= frame_byte_count + 1;
+        if (frame_byte_count = 0) then
+          fid <= master_rx_data(7);
+          opcode <= master_rx_data(6 downto 0);
+          -- TODO: Wait one clock cycle and check FID + OPCODE byte?
+        else
+          dl <= dl(23 downto 0) & master_rx_data;
+        end if;
+      end loop;
+      
+      frame_byte_count <= 0;
+      frame_state <= WAITING;
+    end procedure;
+
+  ------------------------------------------------------------------------------
+  -- Stimuli process start
+  ------------------------------------------------------------------------------
   begin
-    wait until rst_n = '0';
-    opcode_ext <= OP_SET_LEDS;
-    fid_ext <= '0';
-    dl_ext <= x"00000004";
+  
+    -- Reset
+    trans_state <= IDLE;
+    frame_state <= WAITING;
+    
+    opcode <= (others => '0');
+    fid <= '0';
+    dl <= (others => '0');
+    
+    master_tx_data <= (others => '0');
+    master_tx_start_p <= '0';
+    header_buf <= (others => '0');
+    data_buf <= (others => '0');
+    
+    wait until rst_n = '1';
+    
+    -- Prepare SET_LEDS command
+    opcode <= OP_SET_LEDS;
+    fid <= '0';
+    dl <= x"00000004";
     leds_setting <= x"ff";
+    
+    wait for INTER_FRAME_DELAY;
+    
+    -- Send transaction header
+    trans_state <= TRANS_HEADER;
+    send_i2c_addr;
+    send_header(opcode, fid, dl);
+    wait for INTER_FRAME_DELAY;
+    
+    -- Receive F_ACK
+    trans_state <= RX_F_ACK;
+    send_i2c_addr;
+    receive_header;
+    wait for INTER_FRAME_DELAY;
+    
     wait;
-  end process P_STIM;
-
+  end process;
+  ------------------------------------------------------------------------------
+  
   --============================================================================
   -- DUT
   --============================================================================
