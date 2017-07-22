@@ -221,7 +221,8 @@ architecture behav of mist_obc_interface is
   signal frame_rxed_p           : std_logic;
   signal frame_txed_p           : std_logic;
   signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
-  signal trans_byte_count       : unsigned(OBC_DL_WIDTH-1 downto 0);
+  signal frame_data_bytes       : unsigned(OBC_DL_WIDTH-1 downto 0);
+  signal trans_data_bytes       : unsigned(OBC_DL_WIDTH-1 downto 0);
   
   signal data_buf               : std_logic_vector(7 downto 0);
   signal data_buf_addr          : unsigned(8 downto 0);   -- NB: Needs constant!!!
@@ -295,21 +296,21 @@ begin
           
         when RX_F_ACK =>
           if (frame_rxed_p = '1') then
-            if (trans_byte_count /= 0) then
+            if (trans_data_bytes /= 0) then
               trans_state <= TX_DATA_FRAME;
             end if;
           end if;
           
         when TX_F_ACK =>
           if (frame_txed_p = '1') then
-            if (trans_byte_count /= 0) then
+            if (trans_data_bytes /= 0) then
               trans_state <= RX_DATA_FRAME;
             end if;
           end if;
           
         when RX_DATA_FRAME =>
           if (frame_rxed_p = '1') then
-            if (trans_byte_count = 0) then
+            if (trans_data_bytes = 0) then
               trans_state <= TX_T_ACK;
             else
               trans_state <= TX_F_ACK;
@@ -318,7 +319,7 @@ begin
 
         when TX_DATA_FRAME =>
           if (frame_txed_p = '1') then
-            if (trans_byte_count = 0) then
+            if (trans_data_bytes = 0) then
               trans_state <= RX_T_ACK;
             else
               trans_state <= RX_F_ACK;
@@ -360,7 +361,8 @@ begin
       i2c_tx_byte <= (others => '0');
       
       frame_byte_count <= (others => '0');
-      trans_byte_count <= (others => '0');
+      frame_data_bytes <= (others => '0');
+      trans_data_bytes <= (others => '0');
       
       rx_fid <= '0';
       tid <= '0';
@@ -403,6 +405,11 @@ begin
                 i2c_tx_byte <= tid & OP_T_ACK;
                 tx_start_p <= '1';
               when RX_DATA_FRAME =>
+                if (trans_data_bytes >= OBC_MTU) then
+                  frame_data_bytes <= to_unsigned(OBC_MTU, frame_data_bytes'length);
+                else
+                  frame_data_bytes <= trans_data_bytes;
+                end if;
                 frame_state <= RX_DATA_BYTES;
               when others =>
                 null;
@@ -430,7 +437,7 @@ begin
           -- done shifting; apply received fields, signal transaction FSM and
           -- go back to waiting
           else
-            trans_byte_count <= unsigned(rx_data_len);
+            trans_data_bytes <= unsigned(rx_data_len);
             -- TODO: Check here for correct FID and signal error otherwise.
             fid_prev <= rx_fid;
 
@@ -471,7 +478,7 @@ begin
             
           -- done shifting; signal transaction FSM and go back to waiting
           else
-            -- trans_byte_count <= unsigned(tx_data_len);
+            -- trans_data_bytes <= unsigned(tx_data_len);
             -- TODO: Check here for correct FID and signal error otherwise.
             fid_prev <= tx_fid;
 
@@ -486,7 +493,7 @@ begin
           end if;
           
         when RX_DATA_BYTES =>
-          if (frame_byte_count < 5) then
+          if (frame_byte_count < 1+frame_data_bytes) then
             if (i2c_r_done_p = '1') then
               frame_byte_count <= frame_byte_count + 1;
               
@@ -499,7 +506,7 @@ begin
                 data_buf <= i2c_rx_byte;
                 data_buf_write_p <= '1';
                 data_buf_addr <= data_buf_addr + 1;
-                trans_byte_count <= trans_byte_count - 1;
+                trans_data_bytes <= trans_data_bytes - 1;
               -- FCS bytes here
               end if;
             end if;
