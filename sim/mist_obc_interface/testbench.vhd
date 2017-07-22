@@ -78,7 +78,7 @@ architecture arch of testbench is
     TX_DATA_FRAME,
     RX_DATA_FRAME
   );
-
+  
   --============================================================================
   -- Function declarations
   --============================================================================
@@ -113,6 +113,8 @@ architecture arch of testbench is
   constant OBC_DL_NR_BYTES      : natural       := f_log2_size(OBC_DL_WIDTH)-1;
   constant OBC_FCS_WIDTH        : natural       :=   0;
   constant OBC_FCS_NR_BYTES     : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
+
+  type t_data_buf_ram is array (0 to OBC_MTU-1) of std_logic_vector(7 downto 0);
 
   -- MSP operations
   constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
@@ -237,11 +239,12 @@ architecture arch of testbench is
   signal dl                         : std_logic_vector(31 downto 0);
   
   signal frame_byte_count           : natural;
-  signal data_byte_count            : natural;
-  signal nr_data_bytes              : natural;
+  signal frame_data_bytes           : natural;
+  signal trans_data_bytes           : natural;
   
   signal header_buf                 : std_logic_vector(39 downto 0);
-  signal data_buf                   : std_logic_vector(39 downto 0);
+  signal data_buf                   : t_data_buf_ram;
+  signal data_buf_addr              : natural;
   
   -- 1us counter between transactions
   signal delay_count                : natural;
@@ -341,8 +344,8 @@ begin
       
       while (frame_byte_count < OBC_DL_NR_BYTES) loop
         master_tx_data <= header_buf(39 downto 32);
-        header_buf <= header_buf(31 downto 0) & x"00";
         pulse(master_tx_start_p);
+        header_buf <= header_buf(31 downto 0) & x"00";
         wait until master_tx_ready = '1';
         frame_byte_count <= frame_byte_count + 1;
       end loop;
@@ -370,6 +373,31 @@ begin
       frame_byte_count <= 0;
       frame_state <= WAITING;
     end procedure;
+    
+    procedure send_data (
+      signal fid                : in  std_logic;
+      signal frame_data_bytes   : in  natural
+    ) is
+    begin
+      frame_state <= TX_DATA_BYTES;
+
+      master_tx_data <= fid & OP_DATA_FRAME;
+      pulse(master_tx_start_p);
+      wait until master_tx_ready = '1';
+      frame_byte_count <= 1;
+      
+      while (frame_byte_count < frame_data_bytes) loop
+        master_tx_data <= data_buf(data_buf_addr);
+        pulse(master_tx_start_p);
+        data_buf_addr <= data_buf_addr + 1;
+        trans_data_bytes <= trans_data_bytes - 1;
+        wait until master_tx_ready = '1';
+        frame_byte_count <= frame_byte_count + 1;
+      end loop;
+      
+      frame_state <= WAITING;
+      frame_byte_count <= 0;
+    end procedure;
 
   ------------------------------------------------------------------------------
   -- Stimuli process start
@@ -387,15 +415,22 @@ begin
     master_tx_data <= (others => '0');
     master_tx_start_p <= '0';
     header_buf <= (others => '0');
-    data_buf <= (others => '0');
+    data_buf <= (others => (others => '0'));
+    data_buf_addr <= 0;
+    
+    frame_byte_count <= 0;
+    trans_data_bytes <= 0;
+    frame_data_bytes <= 0;
     
     wait until rst_n = '1';
     
     -- Prepare SET_LEDS command
     opcode <= OP_SET_LEDS;
     fid <= '0';
-    dl <= x"00000004";
-    leds_setting <= x"ff";
+    dl <= x"00000001";
+    frame_data_bytes <= 1;
+    trans_data_bytes <= 1;
+    data_buf(0) <= x"ff";
     
     wait for INTER_FRAME_DELAY;
     
@@ -403,6 +438,7 @@ begin
     trans_state <= TRANS_HEADER;
     send_i2c_addr;
     send_header(opcode, fid, dl);
+    fid <= not fid;
     wait for INTER_FRAME_DELAY;
     
     -- Receive F_ACK
@@ -411,6 +447,20 @@ begin
     receive_header;
     wait for INTER_FRAME_DELAY;
     
+    -- Send DATA_FRAME
+    trans_state <= TX_DATA_FRAME;
+    send_i2c_addr;
+    send_data(fid, frame_data_bytes);
+    wait for INTER_FRAME_DELAY;
+    
+    -- Receive T_ACK
+    trans_state <= RX_T_ACK;
+    send_i2c_addr;
+    receive_header;
+    wait for INTER_FRAME_DELAY;
+    
+    trans_state <= IDLE;
+
     wait;
   end process;
   ------------------------------------------------------------------------------
