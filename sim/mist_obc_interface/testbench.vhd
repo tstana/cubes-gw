@@ -130,6 +130,9 @@ architecture arch of testbench is
   constant OP_GET_SIPHRA_ADCR       : std_logic_vector(6 downto 0) := to7bits(x"45");
   constant OP_GET_CH_REG_MASK       : std_logic_vector(6 downto 4) := to3bits(x"5");
   constant OP_NONE                  : std_logic_vector(6 downto 0) := to7bits(x"ff");
+  
+  -- Number of peripherals in testbench
+  constant c_num_periphs            : natural := 1;
 
   --============================================================================
   -- Component declarations
@@ -170,6 +173,10 @@ architecture arch of testbench is
   -- DUT
   -------
   component mist_obc_interface is
+    generic
+    (
+      g_num_periphs : natural
+    );
     port
     (
       -- Clock, active-low reset
@@ -201,6 +208,14 @@ architecture arch of testbench is
       tip_o       : out std_logic;
       err_p_o     : out std_logic;
       wdto_p_o    : out std_logic;
+
+      -- External module enable
+      periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
+      periph_buf_data_i   : in  std_logic_vector(7 downto 0);
+      periph_buf_data_o   : out std_logic_vector(7 downto 0);
+      periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
+      periph_buf_we_p_i   : in  std_logic;
+      trans_done_p_o      : out std_logic;
 
       -- TEMPORARY: UART RX and TX
       rxd_i       : in  std_logic;
@@ -246,14 +261,16 @@ architecture arch of testbench is
   signal data_buf                   : t_data_buf_ram;
   signal data_buf_addr              : natural;
   
+  -- Other signals to/from the DUT
+  signal periph_sel                 : std_logic_vector(f_log2_size(c_num_periphs)-1 downto 0);
+  signal slave_trans_done_p         : std_logic;
+  signal data_from_obc              : std_logic_vector(7 downto 0);
+  
   -- 1us counter between transactions
   signal delay_count                : natural;
   signal delay_count_done_p         : std_logic;
   signal first_run                  : boolean := true;
-  
-  -- Stimuli signals
-  signal leds_setting               : std_logic_vector(7 downto 0);
-  
+    
 --==============================================================================
 --  architecture begin
 --==============================================================================
@@ -398,13 +415,21 @@ begin
       frame_state <= WAITING;
       frame_byte_count <= 0;
     end procedure;
+    
+    procedure end_transaction is
+    begin
+      trans_state <= IDLE;
+      data_buf_addr <= 0;
+    end procedure;
 
   ------------------------------------------------------------------------------
   -- Stimuli process start
   ------------------------------------------------------------------------------
   begin
   
+    ----------------------------------------------------------------------------
     -- Reset
+    ----------------------------------------------------------------------------
     trans_state <= IDLE;
     frame_state <= WAITING;
     
@@ -424,7 +449,9 @@ begin
     
     wait until rst_n = '1';
     
+    ----------------------------------------------------------------------------
     -- Prepare SET_LEDS command
+    ----------------------------------------------------------------------------
     opcode <= OP_SET_LEDS;
     fid <= '0';
     dl <= x"00000001";
@@ -459,7 +486,8 @@ begin
     receive_header;
     wait for INTER_FRAME_DELAY;
     
-    trans_state <= IDLE;
+    end_transaction;
+    ----------------------------------------------------------------------------
 
     wait;
   end process;
@@ -469,31 +497,43 @@ begin
   -- DUT
   --============================================================================
   U_DUT : mist_obc_interface
+    generic map
+    (
+      g_num_periphs => c_num_periphs
+    )
     port map
     (
-    -- Clock, active-low reset
-    clk_i       => clk_100meg,
-    rst_n_a_i   => rst_n,
-    
-    -- I2C lines
-    scl_i       => '0',
-    scl_o       => open,
-    scl_en_o    => open,
-    sda_i       => '0',
-    sda_o       => open,
-    sda_en_o    => open,
+      -- Clock, active-low reset
+      clk_i       => clk_100meg,
+      rst_n_a_i   => rst_n,
+      
+      -- I2C lines
+      scl_i       => '0',
+      scl_o       => open,
+      scl_en_o    => open,
+      sda_i       => '0',
+      sda_o       => open,
+      sda_en_o    => open,
 
-    -- I2C address
-    i2c_addr_i  => CUBES_I2C_ADDR,
+      -- I2C address
+      i2c_addr_i  => CUBES_I2C_ADDR,
 
-    -- Unused
-    tip_o       => open,
-    err_p_o     => open,
-    wdto_p_o    => open,
+      -- Unused
+      tip_o       => open,
+      err_p_o     => open,
+      wdto_p_o    => open,
 
-    -- TEMPORARY: UART RX and TX
-    rxd_i       => master_txd,
-    txd_o       => master_rxd
+      -- External module enable
+      periph_sel_o        => periph_sel,
+      periph_buf_data_i   => (others => '0'),
+      periph_buf_data_o   => data_from_obc,
+      periph_buf_addr_i   => (others => '0'),
+      periph_buf_we_p_i   => '0',
+      trans_done_p_o      => slave_trans_done_p,
+
+      -- TEMPORARY: UART RX and TX
+      rxd_i       => master_txd,
+      txd_o       => master_rxd
     );
     
 end architecture arch;
