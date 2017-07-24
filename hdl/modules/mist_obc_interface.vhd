@@ -41,6 +41,10 @@ use work.genram_pkg.all;
 
 
 entity mist_obc_interface is
+  generic
+  (
+    g_num_ext_modules : natural := 1
+  );
   port
   (
     -- Clock, active-low reset
@@ -72,6 +76,10 @@ entity mist_obc_interface is
     tip_o       : out std_logic;
     err_p_o     : out std_logic;
     wdto_p_o    : out std_logic;
+    
+    -- External module enable
+    periph_sel_o    : out std_logic_vector(f_log2_size(g_num_ext_modules)-1 downto 0);
+    trans_done_p_o  : out std_logic;
 
     -- TEMPORARY: UART RX and TX
     rxd_i       : in  std_logic;
@@ -218,6 +226,7 @@ architecture behav of mist_obc_interface is
   signal rx_data_len            : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
   signal tx_data_len            : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
   
+  -- Implementation-specific signals
   signal frame_rxed_p           : std_logic;
   signal frame_txed_p           : std_logic;
   signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
@@ -275,12 +284,17 @@ begin
   begin
     if (rst_n_a_i = '0') then
       trans_state <= IDLE;
+      trans_done_p_o <= '0';
+      periph_sel_o <= (others => '0');
       
     elsif rising_edge(clk_i) then
+      
+      trans_done_p_o <= '0';
       
       case trans_state is
         when IDLE =>
           if (i2c_addr_match_p = '1') then
+            periph_sel_o <= (others => '0');
             trans_state <= TRANS_HEADER;
           end if;
           
@@ -289,6 +303,7 @@ begin
             case rx_opcode is
               when OP_SET_LEDS =>
                 trans_state <= TX_F_ACK;
+                periph_sel_o <= "1";
               when others =>
                 trans_state <= TX_T_ACK;
             end case;
@@ -328,11 +343,13 @@ begin
           
         when RX_T_ACK =>
           if (frame_rxed_p = '1') then
+            trans_done_p_o <= '1';
             trans_state <= IDLE;
           end if;
           
         when TX_T_ACK =>
           if (frame_txed_p = '1') then
+            trans_done_p_o <= '1';
             trans_state <= IDLE;
           end if;
           
