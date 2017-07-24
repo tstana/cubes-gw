@@ -43,7 +43,7 @@ use work.genram_pkg.all;
 entity mist_obc_interface is
   generic
   (
-    g_num_ext_modules : natural := 1
+    g_num_periphs : natural
   );
   port
   (
@@ -78,8 +78,12 @@ entity mist_obc_interface is
     wdto_p_o    : out std_logic;
     
     -- External module enable
-    periph_sel_o    : out std_logic_vector(f_log2_size(g_num_ext_modules)-1 downto 0);
-    trans_done_p_o  : out std_logic;
+    periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
+    periph_buf_data_i   : in  std_logic_vector(7 downto 0);
+    periph_buf_data_o   : out std_logic_vector(7 downto 0);
+    periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
+    periph_buf_we_p_i   : in  std_logic;
+    trans_done_p_o      : out std_logic;
 
     -- TEMPORARY: UART RX and TX
     rxd_i       : in  std_logic;
@@ -232,10 +236,12 @@ architecture behav of mist_obc_interface is
   signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
   signal frame_data_bytes       : unsigned(OBC_DL_WIDTH-1 downto 0);
   signal trans_data_bytes       : unsigned(OBC_DL_WIDTH-1 downto 0);
+  signal trans_done_p           : std_logic;
   
-  signal data_buf               : std_logic_vector(7 downto 0);
-  signal data_buf_addr          : unsigned(8 downto 0);   -- NB: Needs constant!!!
-  signal data_buf_write_p       : std_logic;
+  signal buf_data_in            : std_logic_vector(7 downto 0);
+  signal buf_data_out           : std_logic_vector(7 downto 0);
+  signal buf_addr               : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  signal buf_we_p               : std_logic;
 
 --==============================================================================
 --  architecture begin
@@ -284,12 +290,12 @@ begin
   begin
     if (rst_n_a_i = '0') then
       trans_state <= IDLE;
-      trans_done_p_o <= '0';
+      trans_done_p <= '0';
       periph_sel_o <= (others => '0');
       
     elsif rising_edge(clk_i) then
       
-      trans_done_p_o <= '0';
+      trans_done_p <= '0';
       
       case trans_state is
         when IDLE =>
@@ -343,13 +349,13 @@ begin
           
         when RX_T_ACK =>
           if (frame_rxed_p = '1') then
-            trans_done_p_o <= '1';
+            trans_done_p <= '1';
             trans_state <= IDLE;
           end if;
           
         when TX_T_ACK =>
           if (frame_txed_p = '1') then
-            trans_done_p_o <= '1';
+            trans_done_p <= '1';
             trans_state <= IDLE;
           end if;
           
@@ -360,6 +366,8 @@ begin
       
     end if;
   end process;
+  
+  trans_done_p_o <= trans_done_p;
 
   --============================================================================
   -- Frame FSM - handles sending of bytes within a frame
@@ -387,9 +395,9 @@ begin
       rx_opcode <= (others => '0');
       rx_data_len <= (others => '0');
       
-      data_buf <= (others => '0');
-      data_buf_addr <= (others => '0');
-      data_buf_write_p <= '0';
+      buf_data_in <= (others => '0');
+      buf_addr <= (others => '0');
+      buf_we_p <= '0';
 
     elsif rising_edge(clk_i) then
    
@@ -399,7 +407,15 @@ begin
       uart_wrapper_stop_p <= '0';
       tx_start_p <= '0';
       
-      data_buf_write_p <= '0';
+      buf_we_p <= '0';
+      
+      -- Buffer address increment after write; new transactions should write
+      -- starting from buffer address 0.
+      if (buf_we_p = '1') then
+        buf_addr <= buf_addr + 1;
+      elsif (trans_done_p = '1') then
+        buf_addr <= (others => '0');
+      end if;
       
       case frame_state is
       
@@ -520,9 +536,8 @@ begin
                 rx_opcode <= i2c_rx_byte(6 downto 0);
               -- DATA bytes
               else
-                data_buf <= i2c_rx_byte;
-                data_buf_write_p <= '1';
-                data_buf_addr <= data_buf_addr + 1;
+                buf_data_in <= i2c_rx_byte;
+                buf_we_p <= '1';
                 trans_data_bytes <= trans_data_bytes - 1;
               -- FCS bytes here
               end if;
@@ -548,6 +563,36 @@ begin
     end if;
   end process;
   
+  --============================================================================
+  -- Dual-port RAM for the data buffer
+  --============================================================================
+  U_BUFFER_RAM : generic_dpram
+    generic map
+    (
+      g_data_width                => 8,
+      g_size                      => 512,     -- NB: Needs constant!
+      g_addr_conflict_resolution  => "read_first",
+      g_dual_clock                => false
+    )
+    port map
+    (
+      rst_n_i => rst_n_a_i,
+
+      -- Port A
+      clka_i => clk_i,
+      wea_i  => buf_we_p,
+      aa_i   => std_logic_vector(buf_addr),
+      da_i   => buf_data_in,
+      qa_o   => buf_data_out,
+      
+      -- Port B
+      clkb_i => '0',
+      web_i  => periph_buf_we_p_i,
+      ab_i   => periph_buf_addr_i,
+      db_i   => periph_buf_data_i,
+      qb_o   => periph_buf_data_o
+    );
+
 end architecture behav;
 --==============================================================================
 --  architecture end
