@@ -77,7 +77,7 @@ entity mist_obc_interface is
     err_p_o     : out std_logic;
     wdto_p_o    : out std_logic;
     
-    -- External module enable
+    -- Peripheral module signals
     periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
     periph_buf_data_i   : in  std_logic_vector(7 downto 0);
     periph_buf_data_o   : out std_logic_vector(7 downto 0);

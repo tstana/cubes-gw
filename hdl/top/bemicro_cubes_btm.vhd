@@ -38,7 +38,6 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.genram_pkg.all;
-use work.wishbone_pkg.all;
 
 
 entity bemicro_cubes_btm is
@@ -93,42 +92,12 @@ architecture arch of bemicro_cubes_btm is
   constant c_i2c_address : std_logic_vector(6 downto 0) := "1110000";
   
   ------------------------------------------------------------------------------
-  -- Wishbone slaves
+  -- Peripherals to OBC interface
   ------------------------------------------------------------------------------
-  -- Number of slaves
-  constant c_num_wb_slaves    : natural := 3;
+  constant c_obc_num_periphs  : natural := 1;
   
-  -- Slave indices
-  constant c_id_regs_idx      : natural := 0;
-  constant c_led_ctrl_idx     : natural := 1;
-  constant c_siphra_ctrl_idx  : natural := 2;
-  
-  -- Slave base addresses
-  constant c_id_regs_addr     : t_wishbone_address := x"00000000";
-  constant c_led_ctrl_addr    : t_wishbone_address := x"00000010";
-  constant c_siphra_ctrl_addr : t_wishbone_address := x"00000200";
-  
-  -- Slave xwb_crossbar masks
-  constant c_id_regs_mask     : t_wishbone_address := x"fffffff0";
-  constant c_led_ctrl_mask    : t_wishbone_address := x"fffffff0";
-  constant c_siphra_ctrl_mask : t_wishbone_address := x"fffffe00";
-  
-  ------------------------------------------------------------------------------
-  -- Wishbone address layout
-  ------------------------------------------------------------------------------
-  constant c_wb_layout : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
-    c_id_regs_idx     => c_id_regs_addr,
-    c_led_ctrl_idx    => c_led_ctrl_addr,
-    c_siphra_ctrl_idx => c_siphra_ctrl_addr
-  );
-  
-  
-  constant c_wb_address_mask : t_wishbone_address_array(0 to c_num_wb_slaves-1) := (
-    c_id_regs_idx     => c_id_regs_mask,
-    c_led_ctrl_idx    => c_led_ctrl_mask,
-    c_siphra_ctrl_idx => c_siphra_ctrl_mask
-  );
-  
+  constant c_obc_sel_leds     : std_logic_vector := "1";
+
   --============================================================================
   -- Component declarations
   --============================================================================
@@ -163,6 +132,10 @@ architecture arch of bemicro_cubes_btm is
   
   -- I2C slave to Wishbone master following MIST OBC protocol
   component mist_obc_interface is
+    generic
+    (
+      g_num_periphs : natural
+    );
     port
     (
       -- Clock, active-low reset
@@ -194,64 +167,20 @@ architecture arch of bemicro_cubes_btm is
       tip_o       : out std_logic;
       err_p_o     : out std_logic;
       wdto_p_o    : out std_logic;
-
-      -- Wishbone master signals
-      wbm_i       : in  t_wishbone_master_in;
-      wbm_o       : out t_wishbone_master_out;
       
+      -- External module enable
+      periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
+      periph_buf_data_i   : in  std_logic_vector(7 downto 0);
+      periph_buf_data_o   : out std_logic_vector(7 downto 0);
+      periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
+      periph_buf_we_p_i   : in  std_logic;
+      trans_done_p_o      : out std_logic;
+
       -- TEMPORARY: UART RX and TX
       rxd_i       : in  std_logic;
       txd_o       : out std_logic
     );
   end component mist_obc_interface;
-
-  -- ID registers slave
-  component wb_id_regs is
-    port
-    (
-      clk_i             : in  std_logic;
-      rst_n_a_i         : in  std_logic;
-      
-      id_version_i      : in  std_logic_vector(15 downto 0);
-      
-      wbs_i             : in  t_wishbone_slave_in;
-      wbs_o             : out t_wishbone_slave_out
-    );
-  end component wb_id_regs;
-
-  -- Wishbone LED control slave
-  component wb_led_ctrl is
-    port
-    (
-      clk_i             : in  std_logic;
-      rst_n_a_i         : in  std_logic;
-      
-      wbs_i             : in  t_wishbone_slave_in;
-      wbs_o             : out t_wishbone_slave_out;
-      
-      led_o             : out std_logic_vector(7 downto 0)
-    );
-  end component wb_led_ctrl;
-
-  -- SIPHRA controller slave
-  component wb_siphra_ctrl is
-    port
-    (
-      clk_i           : in  std_logic;
-      rst_n_a_i       : in  std_logic;
-      
-      spi_cs_n_o      : out std_logic;
-      spi_sclk_o      : out std_logic;
-      spi_mosi_o      : out std_logic;
-      spi_miso_i      : in  std_logic;
-      
-      siphra_sysclk_o : out std_logic;
-      siphra_txd_i    : in  std_logic;
-      
-      wbs_i           : in  t_wishbone_slave_in;
-      wbs_o           : out t_wishbone_slave_out
-    );
-  end component wb_siphra_ctrl;
 
   --============================================================================
   -- Signal declarations
@@ -266,12 +195,9 @@ architecture arch of bemicro_cubes_btm is
 
   signal led                    : std_logic_vector( 7 downto 0);
   
-  -- Wishbone signals
-  signal xwb_slave_in           : t_wishbone_slave_in_array(0 to 0);
-  signal xwb_slave_out          : t_wishbone_slave_out_array(0 to 0);
-  signal xwb_masters_in         : t_wishbone_master_in_array(0 to c_num_wb_slaves-1);
-  signal xwb_masters_out        : t_wishbone_master_out_array(0 to c_num_wb_slaves-1);
-  
+  signal obc_periph_sel         : std_logic_vector(f_log2_size(c_obc_num_periphs)-1 downto 0);
+  signal obc_trans_done_p       : std_logic;
+  signal data_from_obc          : std_logic_vector(7 downto 0);
   
   -- Temporary SPI signals
   -- TODO: Remove!
@@ -324,6 +250,10 @@ begin
   -- MIST OBC I2C slave to Wishbone master
   --============================================================================
   cmp_obc_interface : mist_obc_interface
+    generic map
+    (
+      g_num_periphs => 1
+    )
     port map
     (
       -- Clock, active-low reset
@@ -356,88 +286,42 @@ begin
       err_p_o     => open,
       wdto_p_o    => open,
 
-      -- Wishbone master signals
-      wbm_i       => xwb_slave_out(0),
-      wbm_o       => xwb_slave_in(0),
-      
+      -- Peripheral module signals
+      periph_sel_o        => obc_periph_sel,
+      periph_buf_data_i   => (others => '0'),
+      periph_buf_data_o   => data_from_obc,
+      periph_buf_addr_i   => (others => '0'),
+      periph_buf_we_p_i   => '0',
+      trans_done_p_o      => obc_trans_done_p,
+
       -- TEMPORARY: UART RX and TX
       rxd_i       => rxd_i,
       txd_o       => txd_o
     );
 
   --============================================================================
-  -- Wishbone crossbar
+  -- Debug LEDs
   --============================================================================
-  cmp_crossbar : xwb_crossbar
-    generic map
-    (
-      g_num_masters   => 1,
-      g_num_slaves    => c_num_wb_slaves,
-      g_registered    => false,
-      g_address       => c_wb_layout,
-      g_mask          => c_wb_address_mask
-    )
-    port map
-    (
-      clk_sys_i       => clk_100meg,
-      rst_n_i         => rst_n,
-      slave_i         => xwb_slave_in,
-      slave_o         => xwb_slave_out,
-      master_i        => xwb_masters_in,
-      master_o        => xwb_masters_out
-    );
-
-  -- ID Registers
-  cmp_wb_id_regs : wb_id_regs
-    port map
-    (
-      clk_i             => clk_100meg,
-      rst_n_a_i         => rst_n,
-      
-      id_version_i      => c_gw_version,
-      
-      wbs_i             => xwb_masters_out(c_id_regs_idx),
-      wbs_o             => xwb_masters_in(c_id_regs_idx)
-    );
+  P_DEBUG_LEDS : process (clk_100meg, rst_n) is
+  begin
+    if (rst_n = '0') then
+      led <= (others => '0');
+    elsif rising_edge(clk_100meg) then
+      if (obc_periph_sel = c_obc_sel_leds) and (obc_trans_done_p = '1') then
+        led <= data_from_obc;
+      end if;
+    end if;
+  end process;
   
-  --============================================================================
-  -- Light some LEDs from Wishbone
-  --============================================================================
-  cmp_wb_led_ctrl : wb_led_ctrl
-    port map
-    (
-      clk_i       => clk_100meg,
-      rst_n_a_i   => rst_n,
-      
-      wbs_i       => xwb_masters_out(c_led_ctrl_idx),
-      wbs_o       => xwb_masters_in(c_led_ctrl_idx),
-      
-      led_o       => led
-    );
-
   led_n_o <= not led;
+  --============================================================================
   
-  --============================================================================
-  -- SIPHRA controller slave
-  --============================================================================
-  cmp_wb_siphra_ctrl : wb_siphra_ctrl
-    port map
-    (
-      clk_i           => clk_100meg,
-      rst_n_a_i       => rst_n,
-      
-      spi_cs_n_o      => spi_cs_n,
-      spi_sclk_o      => spi_sclk,
-      spi_mosi_o      => spi_mosi,
-      spi_miso_i      => spi_miso,
-      
-      siphra_sysclk_o => siphra_sysclk_o,
-      siphra_txd_i    => siphra_txd_i,
-      
-      wbs_i           => xwb_masters_out(c_siphra_ctrl_idx),
-      wbs_o           => xwb_masters_in(c_siphra_ctrl_idx)
-    );
-
+  -- Temporary
+  siphra_sysclk_o <= '0';
+  spi_cs_n <= '1';
+  spi_sclk <= '0';
+  spi_mosi <= '0';
+  
   -- Debug outputs
   dbg_cs_n_o <= spi_cs_n;
   dbg_sclk_o <= spi_sclk;
