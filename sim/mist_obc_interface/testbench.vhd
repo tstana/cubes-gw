@@ -98,17 +98,17 @@ architecture arch of testbench is
   --============================================================================
   -- Constant declarations
   --============================================================================
-  constant CLK_PERIOD           : time := 10 ns;
-  constant RESET_PERIOD         : time := 45 us;
+  constant c_clk_per           : time := 10 ns;
+  constant c_reset_per         : time := 45 us;
   
-  constant BAUD_DIV_INT         : natural := 867;
-  constant BAUD_DIV             : std_logic_vector :=
-      std_logic_vector(to_unsigned(BAUD_DIV_INT, f_log2_size(BAUD_DIV_INT)));
+  constant c_baud_div_int         : natural := 867;
+  constant c_baud_div             : std_logic_vector :=
+      std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
       
-  constant INTER_FRAME_DELAY    : time := 1 us;
+  constant c_inter_frame_delay    : time := 1 us;
 
   -- I2C address of slave
-  constant CUBES_I2C_ADDR       : std_logic_vector(6 downto 0) := to7bits(x"70");
+  constant c_cubes_i2c_addr       : std_logic_vector(6 downto 0) := to7bits(x"70");
 
   -- Number of peripherals in testbench
   constant c_num_periphs            : natural := 1;
@@ -264,15 +264,15 @@ begin
   P_CLK : process
   begin
     clk_100meg <= '1';
-    wait for CLK_PERIOD/2;
+    wait for c_clk_per/2;
     clk_100meg <= '0';
-    wait for CLK_PERIOD/2;
+    wait for c_clk_per/2;
   end process P_CLK;
   
   P_RST : process
   begin
     rst_n <= '0';
-    wait for RESET_PERIOD;
+    wait for c_reset_per;
     rst_n <= '1';
     wait;
   end process P_RST;
@@ -284,7 +284,7 @@ begin
   U_UART : uart
     generic map
     (
-      g_baud_div_bits => f_log2_size(BAUD_DIV_INT)
+      g_baud_div_bits => f_log2_size(c_baud_div_int)
     )
     port map
     (
@@ -297,7 +297,7 @@ begin
       txd_o         => master_txd,
 
       -- Ports to other logic
-      baud_div_i    => BAUD_DIV,
+      baud_div_i    => c_baud_div,
 
       tx_data_i     => master_tx_data,
       tx_start_p_i  => master_tx_start_p,
@@ -324,7 +324,7 @@ begin
     procedure send_i2c_addr is
     begin
       frame_state <= I2C_ADDR;
-      master_tx_data <= CUBES_I2C_ADDR & '0';
+      master_tx_data <= c_cubes_i2c_addr & '0';
       pulse(master_tx_start_p);
       wait until master_tx_ready = '1';
     end procedure;
@@ -441,32 +441,32 @@ begin
     trans_data_bytes <= 1;
     data_buf(0) <= x"ff";
     
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Send transaction header
     trans_state <= TRANS_HEADER;
     send_i2c_addr;
     send_header(opcode, fid, dl);
     fid <= not fid;
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
     receive_header;
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
     trans_state <= TX_DATA_FRAME;
     send_i2c_addr;
     send_data(fid, frame_data_bytes);
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
     receive_header;
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     end_transaction;
     ----------------------------------------------------------------------------
@@ -481,32 +481,32 @@ begin
     trans_data_bytes <= 1;
     data_buf(0) <= x"12";
     
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Send transaction header
     trans_state <= TRANS_HEADER;
     send_i2c_addr;
     send_header(opcode, fid, dl);
     fid <= not fid;
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
     receive_header;
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
     trans_state <= TX_DATA_FRAME;
     send_i2c_addr;
     send_data(fid, frame_data_bytes);
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
     receive_header;
-    wait for INTER_FRAME_DELAY;
+    wait for c_inter_frame_delay;
     
     end_transaction;
     ----------------------------------------------------------------------------
@@ -538,7 +538,7 @@ begin
       sda_en_o    => open,
 
       -- I2C address
-      i2c_addr_i  => CUBES_I2C_ADDR,
+      i2c_addr_i  => c_cubes_i2c_addr,
 
       -- Unused
       tip_o       => open,
