@@ -39,6 +39,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.genram_pkg.all;
+use work.msp_pkg.all;
 
 
 entity testbench is
@@ -208,12 +209,12 @@ architecture arch of testbench is
       tip_o       : out std_logic;
       err_p_o     : out std_logic;
       wdto_p_o    : out std_logic;
-
-      -- External module enable
+      
+      -- Peripheral module signals
       periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
       periph_buf_data_i   : in  std_logic_vector(7 downto 0);
       periph_buf_data_o   : out std_logic_vector(7 downto 0);
-      periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
+      periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_obc_mtu)-1 downto 0);
       periph_buf_we_p_i   : in  std_logic;
       periph_data_rdy_p_o : out std_logic;
 
