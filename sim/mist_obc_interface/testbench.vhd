@@ -80,6 +80,8 @@ architecture arch of testbench is
     RX_DATA_FRAME
   );
   
+  type t_data_buf_ram is array(0 to c_msp_mtu-1) of std_logic_vector(7 downto 0);
+  
   --============================================================================
   -- Function declarations
   --============================================================================
@@ -108,30 +110,6 @@ architecture arch of testbench is
   -- I2C address of slave
   constant CUBES_I2C_ADDR       : std_logic_vector(6 downto 0) := to7bits(x"70");
 
-  -- MSP size defines
-  constant OBC_MTU              : natural       := 507;
-  constant OBC_DL_WIDTH         : natural       :=  32;
-  constant OBC_DL_NR_BYTES      : natural       := f_log2_size(OBC_DL_WIDTH)-1;
-  constant OBC_FCS_WIDTH        : natural       :=   0;
-  constant OBC_FCS_NR_BYTES     : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
-
-  type t_data_buf_ram is array (0 to OBC_MTU-1) of std_logic_vector(7 downto 0);
-
-  -- MSP operations
-  constant OP_NULL                  : std_logic_vector(6 downto 0) := to7bits(x"00");
-  constant OP_DATA_FRAME            : std_logic_vector(6 downto 0) := to7bits(x"01");
-  constant OP_F_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"02");
-  constant OP_T_ACK                 : std_logic_vector(6 downto 0) := to7bits(x"03");
-  constant OP_READ_ALL_REGS         : std_logic_vector(6 downto 0) := to7bits(x"11");
-  constant OP_GET_CUBES_ID          : std_logic_vector(6 downto 0) := to7bits(x"40");
-  constant OP_SET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"41");
-  constant OP_GET_LEDS              : std_logic_vector(6 downto 0) := to7bits(x"42");
-  constant OP_SIPHRA_REG_OP         : std_logic_vector(6 downto 0) := to7bits(x"43");
-  constant OP_GET_SIPHRA_DATAR      : std_logic_vector(6 downto 0) := to7bits(x"44");
-  constant OP_GET_SIPHRA_ADCR       : std_logic_vector(6 downto 0) := to7bits(x"45");
-  constant OP_GET_CH_REG_MASK       : std_logic_vector(6 downto 4) := to3bits(x"5");
-  constant OP_NONE                  : std_logic_vector(6 downto 0) := to7bits(x"ff");
-  
   -- Number of peripherals in testbench
   constant c_num_periphs            : natural := 1;
 
@@ -363,7 +341,7 @@ begin
       header_buf(31 downto  0) <= dl;
       wait until rising_edge(clk_100meg);
       
-      while (frame_byte_count < OBC_DL_NR_BYTES) loop
+      while (frame_byte_count < c_msp_dl_num_bytes) loop
         master_tx_data <= header_buf(39 downto 32);
         pulse(master_tx_start_p);
         header_buf <= header_buf(31 downto 0) & x"00";
@@ -379,7 +357,7 @@ begin
     begin
       frame_state <= RX_HEADER_BYTES;
       
-      while (frame_byte_count < OBC_DL_NR_BYTES) loop
+      while (frame_byte_count < c_msp_dl_num_bytes) loop
         wait until master_rx_ready = '1';
         frame_byte_count <= frame_byte_count + 1;
         if (frame_byte_count = 0) then
@@ -402,7 +380,7 @@ begin
     begin
       frame_state <= TX_DATA_BYTES;
 
-      master_tx_data <= fid & OP_DATA_FRAME;
+      master_tx_data <= fid & c_msp_op_data_frame;
       pulse(master_tx_start_p);
       wait until master_tx_ready = '1';
       frame_byte_count <= 1;
@@ -456,7 +434,7 @@ begin
     ----------------------------------------------------------------------------
     -- Prepare SET_LEDS command
     ----------------------------------------------------------------------------
-    opcode <= OP_SET_LEDS;
+    opcode <= c_msp_op_set_leds;
     fid <= '0';
     dl <= x"00000001";
     frame_data_bytes <= 1;
@@ -496,7 +474,7 @@ begin
      ----------------------------------------------------------------------------
     -- Prepare SET_LEDS command
     ----------------------------------------------------------------------------
-    opcode <= OP_SET_LEDS;
+    opcode <= c_msp_op_set_leds;
     fid <= '0';
     dl <= x"00000001";
     frame_data_bytes <= 1;
