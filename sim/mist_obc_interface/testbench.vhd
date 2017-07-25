@@ -329,10 +329,10 @@ begin
       wait until master_tx_ready = '1';
     end procedure;
     
-    procedure send_header(
-      opcode  : in std_logic_vector;
-      fid     : in std_logic;
-      dl      : in std_logic_vector
+    procedure send_header (
+      signal opcode  : in std_logic_vector;
+      signal fid     : in std_logic;
+      signal dl      : in std_logic_vector
     ) is
     begin
       frame_state <= TX_HEADER_BYTES;
@@ -353,7 +353,14 @@ begin
       frame_state <= WAITING;
     end procedure;
     
-    procedure receive_header is
+    procedure receive_header (
+      signal opcode  : out std_logic_vector;
+      signal fid     : out std_logic;
+      signal dl      : out std_logic_vector
+    ) is
+    
+      variable dl_int : std_logic_vector(31 downto 0) := (others => '0');
+      
     begin
       frame_state <= RX_HEADER_BYTES;
       
@@ -365,9 +372,11 @@ begin
           opcode <= master_rx_data(6 downto 0);
           -- TODO: Wait one clock cycle and check FID + OPCODE byte?
         else
-          dl <= dl(23 downto 0) & master_rx_data;
+          dl_int := dl_int(23 downto 0) & master_rx_data;
         end if;
       end loop;
+      
+      dl <= dl_int;
       
       frame_byte_count <= 0;
       frame_state <= WAITING;
@@ -453,7 +462,7 @@ begin
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
-    receive_header;
+    receive_header(opcode, fid, dl);
     wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
@@ -465,7 +474,7 @@ begin
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
-    receive_header;
+    receive_header(opcode, fid, dl);
     wait for c_inter_frame_delay;
     
     end_transaction;
@@ -493,7 +502,7 @@ begin
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
-    receive_header;
+    receive_header(opcode, fid, dl);
     wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
@@ -505,7 +514,7 @@ begin
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
-    receive_header;
+    receive_header(opcode, fid, dl);
     wait for c_inter_frame_delay;
     
     end_transaction;
