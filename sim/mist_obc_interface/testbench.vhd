@@ -228,7 +228,7 @@ architecture arch of testbench is
   signal master_rx_ready_p          : std_logic;
   
   -- MSP specific signals
-  signal fid, tid                   : std_logic;
+  signal fid, rx_fid, tid           : std_logic;
   signal opcode                     : std_logic_vector( 6 downto 0);
   signal dl                         : std_logic_vector(31 downto 0);
   
@@ -425,7 +425,9 @@ begin
     frame_state <= WAITING;
     
     opcode <= (others => '0');
-    fid <= '0';
+    tid <= '0';
+    fid <= '0 ';
+    rx_fid <= '0';
     dl <= (others => '0');
     
     master_tx_data <= (others => '0');
@@ -444,7 +446,6 @@ begin
     -- Prepare SET_LEDS command
     ----------------------------------------------------------------------------
     opcode <= c_msp_op_set_leds;
-    fid <= '0';
     dl <= x"00000001";
     frame_data_bytes <= 1;
     trans_data_bytes <= 1;
@@ -454,6 +455,7 @@ begin
     
     -- Send transaction header
     trans_state <= TRANS_HEADER;
+    tid <= fid;
     send_i2c_addr;
     send_header(opcode, fid, dl);
     fid <= not fid;
@@ -462,29 +464,29 @@ begin
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
-    receive_header(opcode, fid, dl);
+    receive_header(opcode, rx_fid, dl);
     wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
     trans_state <= TX_DATA_FRAME;
     send_i2c_addr;
     send_data(fid, frame_data_bytes);
+    fid <= not fid;
     wait for c_inter_frame_delay;
     
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
-    receive_header(opcode, fid, dl);
+    receive_header(opcode, rx_fid, dl);
     wait for c_inter_frame_delay;
     
     end_transaction;
     ----------------------------------------------------------------------------
 
-     ----------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- Prepare SET_LEDS command
     ----------------------------------------------------------------------------
     opcode <= c_msp_op_set_leds;
-    fid <= '0';
     dl <= x"00000001";
     frame_data_bytes <= 1;
     trans_data_bytes <= 1;
@@ -494,6 +496,7 @@ begin
     
     -- Send transaction header
     trans_state <= TRANS_HEADER;
+    tid <= fid;
     send_i2c_addr;
     send_header(opcode, fid, dl);
     fid <= not fid;
@@ -502,19 +505,20 @@ begin
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
-    receive_header(opcode, fid, dl);
+    receive_header(opcode, rx_fid, dl);
     wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
     trans_state <= TX_DATA_FRAME;
     send_i2c_addr;
     send_data(fid, frame_data_bytes);
+    fid <= not fid;
     wait for c_inter_frame_delay;
     
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
-    receive_header(opcode, fid, dl);
+    receive_header(opcode, rx_fid, dl);
     wait for c_inter_frame_delay;
     
     end_transaction;

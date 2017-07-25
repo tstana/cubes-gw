@@ -17,7 +17,9 @@ add wave -noupdate -radix unsigned /testbench/trans_data_bytes
 add wave -noupdate /testbench/master_rx_ready
 add wave -noupdate -radix hexadecimal /testbench/master_rx_data
 add wave -noupdate -radix hexadecimal /testbench/opcode
+add wave -noupdate /testbench/tid
 add wave -noupdate /testbench/fid
+add wave -noupdate /testbench/rx_fid
 add wave -noupdate -radix unsigned /testbench/dl
 add wave -noupdate /testbench/data_from_obc
 add wave -noupdate -divider ERROR
