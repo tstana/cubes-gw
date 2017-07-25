@@ -83,7 +83,7 @@ entity mist_obc_interface is
     periph_buf_data_o   : out std_logic_vector(7 downto 0);
     periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
     periph_buf_we_p_i   : in  std_logic;
-    trans_done_p_o      : out std_logic;
+    periph_data_rdy_p_o : out std_logic;
 
     -- TEMPORARY: UART RX and TX
     rxd_i       : in  std_logic;
@@ -292,10 +292,13 @@ begin
       trans_state <= IDLE;
       trans_done_p <= '0';
       periph_sel_o <= (others => '0');
+      periph_data_rdy_p_o <= '0';
       
     elsif rising_edge(clk_i) then
       
       trans_done_p <= '0';
+      
+      periph_data_rdy_p_o <= '0';
       
       case trans_state is
         when IDLE =>
@@ -331,6 +334,7 @@ begin
           
         when RX_DATA_FRAME =>
           if (frame_rxed_p = '1') then
+            periph_data_rdy_p_o <= '1';
             if (trans_data_bytes = 0) then
               trans_state <= TX_T_ACK;
             else
@@ -367,8 +371,6 @@ begin
     end if;
   end process;
   
-  trans_done_p_o <= trans_done_p;
-
   --============================================================================
   -- Frame FSM - handles sending of bytes within a frame
   --============================================================================
@@ -398,7 +400,7 @@ begin
       buf_data_in <= (others => '0');
       buf_addr <= (others => '0');
       buf_we_p <= '0';
-
+      
     elsif rising_edge(clk_i) then
    
       frame_rxed_p <= '0';
