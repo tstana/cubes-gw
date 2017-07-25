@@ -45,6 +45,7 @@ add wave -noupdate -radix unsigned /testbench/U_DUT/trans_data_bytes
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/buf_data_in
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/buf_addr
 add wave -noupdate /testbench/U_DUT/buf_we_p
+add wave -noupdate -radix hexadecimal /testbench/led
 TreeUpdate [SetDefaultTree]
 WaveRestoreCursors {{Cursor 1} {2243708609 ps} 0}
 quietly wave cursor active 1

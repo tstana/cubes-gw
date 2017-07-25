@@ -215,7 +215,7 @@ architecture arch of testbench is
       periph_buf_data_o   : out std_logic_vector(7 downto 0);
       periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
       periph_buf_we_p_i   : in  std_logic;
-      trans_done_p_o      : out std_logic;
+      periph_data_rdy_p_o : out std_logic;
 
       -- TEMPORARY: UART RX and TX
       rxd_i       : in  std_logic;
@@ -263,13 +263,16 @@ architecture arch of testbench is
   
   -- Other signals to/from the DUT
   signal periph_sel                 : std_logic_vector(f_log2_size(c_num_periphs)-1 downto 0);
-  signal slave_trans_done_p         : std_logic;
+  signal obc_data_rdy_p             : std_logic;
   signal data_from_obc              : std_logic_vector(7 downto 0);
   
   -- 1us counter between transactions
   signal delay_count                : natural;
   signal delay_count_done_p         : std_logic;
   signal first_run                  : boolean := true;
+  
+  -- DUT-specific signals (mimicking logic in synthesizable gateware)
+  signal led                        : std_logic_vector(7 downto 0);
     
 --==============================================================================
 --  architecture begin
@@ -489,7 +492,47 @@ begin
     end_transaction;
     ----------------------------------------------------------------------------
 
-    wait;
+     ----------------------------------------------------------------------------
+    -- Prepare SET_LEDS command
+    ----------------------------------------------------------------------------
+    opcode <= OP_SET_LEDS;
+    fid <= '0';
+    dl <= x"00000001";
+    frame_data_bytes <= 1;
+    trans_data_bytes <= 1;
+    data_buf(0) <= x"12";
+    
+    wait for INTER_FRAME_DELAY;
+    
+    -- Send transaction header
+    trans_state <= TRANS_HEADER;
+    send_i2c_addr;
+    send_header(opcode, fid, dl);
+    fid <= not fid;
+    wait for INTER_FRAME_DELAY;
+    
+    -- Receive F_ACK
+    trans_state <= RX_F_ACK;
+    send_i2c_addr;
+    receive_header;
+    wait for INTER_FRAME_DELAY;
+    
+    -- Send DATA_FRAME
+    trans_state <= TX_DATA_FRAME;
+    send_i2c_addr;
+    send_data(fid, frame_data_bytes);
+    wait for INTER_FRAME_DELAY;
+    
+    -- Receive T_ACK
+    trans_state <= RX_T_ACK;
+    send_i2c_addr;
+    receive_header;
+    wait for INTER_FRAME_DELAY;
+    
+    end_transaction;
+    ----------------------------------------------------------------------------
+
+   wait;
   end process;
   ------------------------------------------------------------------------------
   
@@ -529,13 +572,25 @@ begin
       periph_buf_data_o   => data_from_obc,
       periph_buf_addr_i   => (others => '0'),
       periph_buf_we_p_i   => '0',
-      trans_done_p_o      => slave_trans_done_p,
+      periph_data_rdy_p_o => obc_data_rdy_p,
 
       -- TEMPORARY: UART RX and TX
       rxd_i       => master_txd,
       txd_o       => master_rxd
     );
     
+  -- Debug LEDs
+  P_DEBUG_LEDS : process (clk_100meg, rst_n) is
+  begin
+    if (rst_n = '0') then
+      led <= (others => '0');
+    elsif rising_edge(clk_100meg) then
+      if (periph_sel = "1") and (obc_data_rdy_p = '1') then
+        led <= data_from_obc;
+      end if;
+    end if;
+  end process;
+
 end architecture arch;
 --==============================================================================
 --  architecture end

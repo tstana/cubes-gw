@@ -14,5 +14,5 @@ vsim -t 1ps -voptargs="+acc" -lib work work.testbench
 
 do wave.do
 
-run 3 ms
+run 4 ms
 wave zoomfull
