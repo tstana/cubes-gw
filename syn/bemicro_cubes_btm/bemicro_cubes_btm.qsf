@@ -76,6 +76,7 @@ set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/
 set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/genrams/altera/generic_dpram.vhd"
 set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/common/gencores_pkg.vhd"
 set_global_assignment -name VHDL_FILE "../../hdl/ip_cores/general-cores/modules/common/gc_sync_ffs.vhd"
+set_global_assignment -name VHDL_FILE ../../hdl/modules/msp_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../hdl/ip_cores/altera_cascade_pll/altera_cascade_pll.vhd
 set_global_assignment -name QIP_FILE ../../hdl/ip_cores/altera_cascade_pll/altera_cascade_pll.qip
 set_global_assignment -name VHDL_FILE ../../hdl/ip_cores/altera_main_pll/altera_main_pll.vhd

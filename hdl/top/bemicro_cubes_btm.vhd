@@ -38,6 +38,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.genram_pkg.all;
+use work.msp_pkg.all;
 
 
 entity bemicro_cubes_btm is
@@ -168,13 +169,13 @@ architecture arch of bemicro_cubes_btm is
       err_p_o     : out std_logic;
       wdto_p_o    : out std_logic;
       
-      -- External module enable
+      -- Peripheral module signals
       periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
       periph_buf_data_i   : in  std_logic_vector(7 downto 0);
       periph_buf_data_o   : out std_logic_vector(7 downto 0);
-      periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
+      periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
       periph_buf_we_p_i   : in  std_logic;
-      trans_done_p_o      : out std_logic;
+      periph_data_rdy_p_o : out std_logic;
 
       -- TEMPORARY: UART RX and TX
       rxd_i       : in  std_logic;
@@ -196,7 +197,7 @@ architecture arch of bemicro_cubes_btm is
   signal led                    : std_logic_vector( 7 downto 0);
   
   signal obc_periph_sel         : std_logic_vector(f_log2_size(c_obc_num_periphs)-1 downto 0);
-  signal obc_trans_done_p       : std_logic;
+  signal data_from_obc_rdy_p    : std_logic;
   signal data_from_obc          : std_logic_vector(7 downto 0);
   
   -- Temporary SPI signals
@@ -292,7 +293,7 @@ begin
       periph_buf_data_o   => data_from_obc,
       periph_buf_addr_i   => (others => '0'),
       periph_buf_we_p_i   => '0',
-      trans_done_p_o      => obc_trans_done_p,
+      periph_data_rdy_p_o => data_from_obc_rdy_p,
 
       -- TEMPORARY: UART RX and TX
       rxd_i       => rxd_i,
@@ -307,7 +308,7 @@ begin
     if (rst_n = '0') then
       led <= (others => '0');
     elsif rising_edge(clk_100meg) then
-      if (obc_periph_sel = c_obc_sel_leds) and (obc_trans_done_p = '1') then
+      if (obc_periph_sel = c_obc_sel_leds) and (data_from_obc_rdy_p = '1') then
         led <= data_from_obc;
       end if;
     end if;
