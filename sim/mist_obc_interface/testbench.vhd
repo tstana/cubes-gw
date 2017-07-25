@@ -214,7 +214,7 @@ architecture arch of testbench is
       periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
       periph_buf_data_i   : in  std_logic_vector(7 downto 0);
       periph_buf_data_o   : out std_logic_vector(7 downto 0);
-      periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_obc_mtu)-1 downto 0);
+      periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
       periph_buf_we_p_i   : in  std_logic;
       periph_data_rdy_p_o : out std_logic;
 

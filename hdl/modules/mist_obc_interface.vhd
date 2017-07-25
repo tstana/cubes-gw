@@ -81,7 +81,7 @@ entity mist_obc_interface is
     periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
     periph_buf_data_i   : in  std_logic_vector(7 downto 0);
     periph_buf_data_o   : out std_logic_vector(7 downto 0);
-    periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_obc_mtu)-1 downto 0);
+    periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
     periph_buf_we_p_i   : in  std_logic;
     periph_data_rdy_p_o : out std_logic;
 
@@ -190,20 +190,20 @@ architecture behav of mist_obc_interface is
   signal fid_prev               : std_logic;
   signal tid                    : std_logic;
   signal rx_opcode, tx_opcode   : std_logic_vector(6 downto 0);
-  signal rx_data_len            : std_logic_vector(c_obc_dl_width-1 downto 0);
-  signal tx_data_len            : std_logic_vector(c_obc_dl_width-1 downto 0);
+  signal rx_data_len            : std_logic_vector(c_msp_dl_width-1 downto 0);
+  signal tx_data_len            : std_logic_vector(c_msp_dl_width-1 downto 0);
   
   -- Implementation-specific signals
   signal frame_rxed_p           : std_logic;
   signal frame_txed_p           : std_logic;
-  signal frame_byte_count       : unsigned(f_log2_size(c_obc_mtu)-1 downto 0);
-  signal frame_data_bytes       : unsigned(c_obc_dl_width-1 downto 0);
-  signal trans_data_bytes       : unsigned(c_obc_dl_width-1 downto 0);
+  signal frame_byte_count       : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
+  signal frame_data_bytes       : unsigned(c_msp_dl_width-1 downto 0);
+  signal trans_data_bytes       : unsigned(c_msp_dl_width-1 downto 0);
   signal trans_done_p           : std_logic;
   
   signal buf_data_in            : std_logic_vector(7 downto 0);
   signal buf_data_out           : std_logic_vector(7 downto 0);
-  signal buf_addr               : unsigned(f_log2_size(c_obc_mtu)-1 downto 0);
+  signal buf_addr               : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
   signal buf_we_p               : std_logic;
 
 --==============================================================================
@@ -273,7 +273,7 @@ begin
         when TRANS_HEADER =>
           if (frame_rxed_p = '1') then
             case rx_opcode is
-              when c_op_set_leds =>
+              when c_msp_op_set_leds =>
                 trans_state <= TX_F_ACK;
                 periph_sel_o <= "1";
               when others =>
@@ -395,16 +395,16 @@ begin
               when TX_F_ACK =>
                 frame_state <= TX_HEADER_BYTES;
                 tx_data_len <= (others => '0');
-                i2c_tx_byte <= fid_prev & c_op_f_ack;
+                i2c_tx_byte <= fid_prev & c_msp_op_f_ack;
                 tx_start_p <= '1';
               when TX_T_ACK =>
                 frame_state <= TX_HEADER_BYTES;
                 tx_data_len <= (others => '0');
-                i2c_tx_byte <= tid & c_op_t_ack;
+                i2c_tx_byte <= tid & c_msp_op_t_ack;
                 tx_start_p <= '1';
               when RX_DATA_FRAME =>
-                if (trans_data_bytes >= c_obc_mtu) then
-                  frame_data_bytes <= to_unsigned(c_obc_mtu, frame_data_bytes'length);
+                if (trans_data_bytes >= c_msp_mtu) then
+                  frame_data_bytes <= to_unsigned(c_msp_mtu, frame_data_bytes'length);
                 else
                   frame_data_bytes <= trans_data_bytes;
                 end if;
@@ -428,7 +428,7 @@ begin
                 rx_opcode <= i2c_rx_byte(6 downto 0);
               -- DL field bytes
               else
-                rx_data_len <= rx_data_len(c_obc_dl_width-9 downto 0) & i2c_rx_byte;
+                rx_data_len <= rx_data_len(c_msp_dl_width-9 downto 0) & i2c_rx_byte;
               end if;
             end if;
               
@@ -463,8 +463,8 @@ begin
               
               -- DL bytes
               if (frame_byte_count < 4) then
-                tx_data_len <= tx_data_len(c_obc_dl_width-9 downto 0) & x"00";
-                i2c_tx_byte <= tx_data_len(c_obc_dl_width-1 downto c_obc_dl_width-8);
+                tx_data_len <= tx_data_len(c_msp_dl_width-9 downto 0) & x"00";
+                i2c_tx_byte <= tx_data_len(c_msp_dl_width-1 downto c_msp_dl_width-8);
                 tx_start_p <= '1';
                 
               -- FCS bytes
@@ -535,7 +535,7 @@ begin
     generic map
     (
       g_data_width                => 8,
-      g_size                      => c_obc_mtu,
+      g_size                      => c_msp_mtu,
       g_addr_conflict_resolution  => "read_first",
       g_dual_clock                => false
     )
