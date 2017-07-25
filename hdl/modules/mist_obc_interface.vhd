@@ -144,25 +144,22 @@ architecture behav of mist_obc_interface is
   -- Constant declarations
   --============================================================================
   -- MSP size defines
-  constant OBC_MTU            : natural       := 507;
-  constant OBC_DL_WIDTH       : natural       :=  32;
-  constant OBC_DL_NR_BYTES    : natural       := f_log2_size(OBC_DL_WIDTH)-1;
-  constant OBC_FCS_WIDTH      : natural       :=   0;
-  constant OBC_FCS_NR_BYTES   : natural       :=   0;  -- f_log2_size(OBC_FCS_WIDTH);
+  constant c_obc_mtu            : natural       := 507;
+  constant c_obc_dl_width       : natural       :=  32;
+  constant c_obc_dl_num_bytes   : natural       := f_log2_size(c_obc_dl_width)-1;
+  constant c_obc_fcs_width      : natural       :=   0;
+  constant c_obc_fcs_num_bytes  : natural       :=   0;  -- f_log2_size(c_obc_fcs_width);
 
   -- MSP operations
-  constant OP_NULL            : std_logic_vector(6 downto 0) := to7bits(x"00");
-  constant OP_DATA_FRAME      : std_logic_vector(6 downto 0) := to7bits(x"01");
-  constant OP_F_ACK           : std_logic_vector(6 downto 0) := to7bits(x"02");
-  constant OP_T_ACK           : std_logic_vector(6 downto 0) := to7bits(x"03");
-  constant OP_READ_ALL_REGS   : std_logic_vector(6 downto 0) := to7bits(x"11");
-  constant OP_GET_CUBES_ID    : std_logic_vector(6 downto 0) := to7bits(x"40");
-  constant OP_SET_LEDS        : std_logic_vector(6 downto 0) := to7bits(x"41");
-  constant OP_GET_LEDS        : std_logic_vector(6 downto 0) := to7bits(x"42");
-  constant OP_SIPHRA_REG_OP   : std_logic_vector(6 downto 0) := to7bits(x"43");
-  constant OP_GET_SIPHRA_DATAR: std_logic_vector(6 downto 0) := to7bits(x"44");
-  constant OP_GET_SIPHRA_ADCR : std_logic_vector(6 downto 0) := to7bits(x"45");
-  constant OP_GET_CH_REG_MASK : std_logic_vector(6 downto 4) := to3bits(x"5");
+  constant c_op_null            : std_logic_vector(6 downto 0) := to7bits(x"00");
+  constant c_op_data_frame      : std_logic_vector(6 downto 0) := to7bits(x"01");
+  constant c_op_f_ack           : std_logic_vector(6 downto 0) := to7bits(x"02");
+  constant c_op_t_ack           : std_logic_vector(6 downto 0) := to7bits(x"03");
+  constant c_op_read_all_regs   : std_logic_vector(6 downto 0) := to7bits(x"11");
+  constant c_op_get_cubes_id    : std_logic_vector(6 downto 0) := to7bits(x"40");
+  constant c_op_set_leds        : std_logic_vector(6 downto 0) := to7bits(x"41");
+  constant c_op_get_leds        : std_logic_vector(6 downto 0) := to7bits(x"42");
+  constant c_op_siphra_reg_op   : std_logic_vector(6 downto 0) := to7bits(x"43");
 
   --============================================================================
   -- Component declarations
@@ -227,15 +224,15 @@ architecture behav of mist_obc_interface is
   signal fid_prev               : std_logic;
   signal tid                    : std_logic;
   signal rx_opcode, tx_opcode   : std_logic_vector(6 downto 0);
-  signal rx_data_len            : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
-  signal tx_data_len            : std_logic_vector(OBC_DL_WIDTH-1 downto 0);
+  signal rx_data_len            : std_logic_vector(c_obc_dl_width-1 downto 0);
+  signal tx_data_len            : std_logic_vector(c_obc_dl_width-1 downto 0);
   
   -- Implementation-specific signals
   signal frame_rxed_p           : std_logic;
   signal frame_txed_p           : std_logic;
   signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
-  signal frame_data_bytes       : unsigned(OBC_DL_WIDTH-1 downto 0);
-  signal trans_data_bytes       : unsigned(OBC_DL_WIDTH-1 downto 0);
+  signal frame_data_bytes       : unsigned(c_obc_dl_width-1 downto 0);
+  signal trans_data_bytes       : unsigned(c_obc_dl_width-1 downto 0);
   signal trans_done_p           : std_logic;
   
   signal buf_data_in            : std_logic_vector(7 downto 0);
@@ -310,7 +307,7 @@ begin
         when TRANS_HEADER =>
           if (frame_rxed_p = '1') then
             case rx_opcode is
-              when OP_SET_LEDS =>
+              when c_op_set_leds =>
                 trans_state <= TX_F_ACK;
                 periph_sel_o <= "1";
               when others =>
@@ -432,16 +429,16 @@ begin
               when TX_F_ACK =>
                 frame_state <= TX_HEADER_BYTES;
                 tx_data_len <= (others => '0');
-                i2c_tx_byte <= fid_prev & OP_F_ACK;
+                i2c_tx_byte <= fid_prev & c_op_f_ack;
                 tx_start_p <= '1';
               when TX_T_ACK =>
                 frame_state <= TX_HEADER_BYTES;
                 tx_data_len <= (others => '0');
-                i2c_tx_byte <= tid & OP_T_ACK;
+                i2c_tx_byte <= tid & c_op_t_ack;
                 tx_start_p <= '1';
               when RX_DATA_FRAME =>
-                if (trans_data_bytes >= OBC_MTU) then
-                  frame_data_bytes <= to_unsigned(OBC_MTU, frame_data_bytes'length);
+                if (trans_data_bytes >= c_obc_mtu) then
+                  frame_data_bytes <= to_unsigned(c_obc_mtu, frame_data_bytes'length);
                 else
                   frame_data_bytes <= trans_data_bytes;
                 end if;
@@ -465,7 +462,7 @@ begin
                 rx_opcode <= i2c_rx_byte(6 downto 0);
               -- DL field bytes
               else
-                rx_data_len <= rx_data_len(OBC_DL_WIDTH-9 downto 0) & i2c_rx_byte;
+                rx_data_len <= rx_data_len(c_obc_dl_width-9 downto 0) & i2c_rx_byte;
               end if;
             end if;
               
@@ -500,8 +497,8 @@ begin
               
               -- DL bytes
               if (frame_byte_count < 4) then
-                tx_data_len <= tx_data_len(OBC_DL_WIDTH-9 downto 0) & x"00";
-                i2c_tx_byte <= tx_data_len(OBC_DL_WIDTH-1 downto OBC_DL_WIDTH-8);
+                tx_data_len <= tx_data_len(c_obc_dl_width-9 downto 0) & x"00";
+                i2c_tx_byte <= tx_data_len(c_obc_dl_width-1 downto c_obc_dl_width-8);
                 tx_start_p <= '1';
                 
               -- FCS bytes
@@ -528,7 +525,7 @@ begin
           end if;
           
         when RX_DATA_BYTES =>
-          if (frame_byte_count < 1+frame_data_bytes) then
+          if (frame_byte_count < 1 + frame_data_bytes) then
             if (i2c_r_done_p = '1') then
               frame_byte_count <= frame_byte_count + 1;
               
