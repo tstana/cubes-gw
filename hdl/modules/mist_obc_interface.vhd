@@ -38,7 +38,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.genram_pkg.all;
-
+use work.msp_pkg.all;
 
 entity mist_obc_interface is
   generic
@@ -81,7 +81,7 @@ entity mist_obc_interface is
     periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
     periph_buf_data_i   : in  std_logic_vector(7 downto 0);
     periph_buf_data_o   : out std_logic_vector(7 downto 0);
-    periph_buf_addr_i   : in  std_logic_vector(8 downto 0);   -- NB: Possibly needs constant!
+    periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_obc_mtu)-1 downto 0);
     periph_buf_we_p_i   : in  std_logic;
     periph_data_rdy_p_o : out std_logic;
 
@@ -126,40 +126,6 @@ architecture behav of mist_obc_interface is
     RX_DATA_BYTES,
     TX_DATA_BYTES
   );
-
-  --============================================================================
-  -- Function declarations
-  --============================================================================
-  function to7bits(v : std_logic_vector(7 downto 0)) return std_logic_vector is
-  begin
-    return v(6 downto 0);
-  end function;
-
-  function to3bits(v : std_logic_vector(3 downto 0)) return std_logic_vector is
-  begin
-    return v(2 downto 0);
-  end function;
-
-  --============================================================================
-  -- Constant declarations
-  --============================================================================
-  -- MSP size defines
-  constant c_obc_mtu            : natural       := 507;
-  constant c_obc_dl_width       : natural       :=  32;
-  constant c_obc_dl_num_bytes   : natural       := f_log2_size(c_obc_dl_width)-1;
-  constant c_obc_fcs_width      : natural       :=   0;
-  constant c_obc_fcs_num_bytes  : natural       :=   0;  -- f_log2_size(c_obc_fcs_width);
-
-  -- MSP operations
-  constant c_op_null            : std_logic_vector(6 downto 0) := to7bits(x"00");
-  constant c_op_data_frame      : std_logic_vector(6 downto 0) := to7bits(x"01");
-  constant c_op_f_ack           : std_logic_vector(6 downto 0) := to7bits(x"02");
-  constant c_op_t_ack           : std_logic_vector(6 downto 0) := to7bits(x"03");
-  constant c_op_read_all_regs   : std_logic_vector(6 downto 0) := to7bits(x"11");
-  constant c_op_get_cubes_id    : std_logic_vector(6 downto 0) := to7bits(x"40");
-  constant c_op_set_leds        : std_logic_vector(6 downto 0) := to7bits(x"41");
-  constant c_op_get_leds        : std_logic_vector(6 downto 0) := to7bits(x"42");
-  constant c_op_siphra_reg_op   : std_logic_vector(6 downto 0) := to7bits(x"43");
 
   --============================================================================
   -- Component declarations
@@ -569,7 +535,7 @@ begin
     generic map
     (
       g_data_width                => 8,
-      g_size                      => 512,     -- NB: Needs constant!
+      g_size                      => c_obc_mtu,
       g_addr_conflict_resolution  => "read_first",
       g_dual_clock                => false
     )
