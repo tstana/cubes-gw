@@ -196,14 +196,14 @@ architecture behav of mist_obc_interface is
   -- Implementation-specific signals
   signal frame_rxed_p           : std_logic;
   signal frame_txed_p           : std_logic;
-  signal frame_byte_count       : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  signal frame_byte_count       : unsigned(f_log2_size(c_obc_mtu)-1 downto 0);
   signal frame_data_bytes       : unsigned(c_obc_dl_width-1 downto 0);
   signal trans_data_bytes       : unsigned(c_obc_dl_width-1 downto 0);
   signal trans_done_p           : std_logic;
   
   signal buf_data_in            : std_logic_vector(7 downto 0);
   signal buf_data_out           : std_logic_vector(7 downto 0);
-  signal buf_addr               : unsigned(8 downto 0);   -- NB: Needs constant!!!
+  signal buf_addr               : unsigned(f_log2_size(c_obc_mtu)-1 downto 0);
   signal buf_we_p               : std_logic;
 
 --==============================================================================
