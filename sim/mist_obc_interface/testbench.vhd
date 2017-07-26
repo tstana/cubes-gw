@@ -426,7 +426,7 @@ begin
     
     opcode <= (others => '0');
     tid <= '0';
-    fid <= '0 ';
+    fid <= '0';
     rx_fid <= '0';
     dl <= (others => '0');
     
