@@ -33,11 +33,11 @@ add wave -noupdate /testbench/U_DUT/i2c_r_done_p
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/i2c_rx_byte
 add wave -noupdate -radix unsigned /testbench/U_DUT/frame_byte_count
 add wave -noupdate /testbench/U_DUT/frame_rxed_p
-add wave -noupdate /testbench/U_DUT/rx_fid
 add wave -noupdate -radix hexadecimal /testbench/U_DUT/rx_opcode
 add wave -noupdate -radix unsigned /testbench/U_DUT/rx_data_len
-add wave -noupdate /testbench/U_DUT/fid_prev
 add wave -noupdate /testbench/U_DUT/tid
+add wave -noupdate /testbench/U_DUT/fid
+add wave -noupdate /testbench/U_DUT/fid_prev
 add wave -noupdate -radix unsigned /testbench/U_DUT/frame_byte_count
 add wave -noupdate /testbench/U_DUT/frame_txed_p
 add wave -noupdate /testbench/U_DUT/tx_start_p
@@ -65,4 +65,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits us
 update
-WaveRestoreZoom {0 ps} {6300 us}
+WaveRestoreZoom {0 ps} {4200 us}

@@ -186,9 +186,9 @@ architecture behav of mist_obc_interface is
   signal tx_start_p             : std_logic;
 
   -- OBC protocol signals
-  signal rx_fid, tx_fid         : std_logic;
-  signal fid_prev               : std_logic;
+  signal fid, fid_prev          : std_logic;
   signal tid                    : std_logic;
+  signal obc_send_trans         : std_logic;
   signal rx_opcode, tx_opcode   : std_logic_vector(6 downto 0);
   signal rx_data_len            : std_logic_vector(c_msp_dl_width-1 downto 0);
   signal tx_data_len            : std_logic_vector(c_msp_dl_width-1 downto 0);
@@ -254,6 +254,7 @@ begin
     if (rst_n_a_i = '0') then
       trans_state <= IDLE;
       trans_done_p <= '0';
+      obc_send_trans <= '0';
       periph_sel_o <= (others => '0');
       periph_data_rdy_p_o <= '0';
       
@@ -265,6 +266,7 @@ begin
       
       case trans_state is
         when IDLE =>
+          obc_send_trans <= '0';
           if (i2c_addr_match_p = '1') then
             periph_sel_o <= (others => '0');
             trans_state <= TRANS_HEADER;
@@ -274,8 +276,9 @@ begin
           if (frame_rxed_p = '1') then
             case rx_opcode is
               when c_msp_op_set_leds =>
-                trans_state <= TX_F_ACK;
+                obc_send_trans <= '1';
                 periph_sel_o <= "1";
+                trans_state <= TX_F_ACK;
               when others =>
                 trans_state <= TX_T_ACK;
             end case;
@@ -354,8 +357,8 @@ begin
       frame_data_bytes <= (others => '0');
       trans_data_bytes <= (others => '0');
       
-      rx_fid <= '0';
       tid <= '0';
+      fid <= '0';
       fid_prev <= '0';
       rx_opcode <= (others => '0');
       rx_data_len <= (others => '0');
@@ -395,7 +398,7 @@ begin
               when TX_F_ACK =>
                 frame_state <= TX_HEADER_BYTES;
                 tx_data_len <= (others => '0');
-                i2c_tx_byte <= fid_prev & c_msp_op_f_ack;
+                i2c_tx_byte <= fid & c_msp_op_f_ack;
                 tx_start_p <= '1';
               when TX_T_ACK =>
                 frame_state <= TX_HEADER_BYTES;
@@ -421,8 +424,8 @@ begin
               frame_byte_count <= frame_byte_count + 1;
               -- FID+OPCODE byte
               if (frame_byte_count = 0) then
-                rx_fid <= i2c_rx_byte(7);
-                if (trans_state = TRANS_HEADER) then
+                fid <= i2c_rx_byte(7);
+                if (trans_state = TRANS_HEADER) and (obc_send_trans = '1') then
                   tid <= i2c_rx_byte(7);
                 end if;
                 rx_opcode <= i2c_rx_byte(6 downto 0);
@@ -437,7 +440,7 @@ begin
           else
             trans_data_bytes <= unsigned(rx_data_len);
             -- TODO: Check here for correct FID and signal error otherwise.
-            fid_prev <= rx_fid;
+            fid_prev <= fid;
 
             frame_rxed_p <= '1';
             
@@ -455,12 +458,6 @@ begin
             if (i2c_w_done_p = '1') then
               frame_byte_count <= frame_byte_count + 1;
               
-              -- FID+OPCODE byte
-              if (frame_byte_count = 0) then
-                tx_fid <= i2c_tx_byte(7);
-                tx_opcode <= i2c_tx_byte(6 downto 0);
-              end if;
-              
               -- DL bytes
               if (frame_byte_count < 4) then
                 tx_data_len <= tx_data_len(c_msp_dl_width-9 downto 0) & x"00";
@@ -477,8 +474,15 @@ begin
           -- done shifting; signal transaction FSM and go back to waiting
           else
             -- trans_data_bytes <= unsigned(tx_data_len);
+            
             -- TODO: Check here for correct FID and signal error otherwise.
-            fid_prev <= tx_fid;
+            
+            -- FID only controlled by CUBES if this is an OBC Request
+            -- transaction; otherwise, the OBC sets the FID field.
+            if (obc_send_trans = '0') then
+              fid_prev <= fid;
+              fid <= not fid;
+            end if;
 
             frame_txed_p <= '1';
             
@@ -497,7 +501,7 @@ begin
               
               -- FID+OPCODE byte
               if (frame_byte_count = 0) then
-                rx_fid <= i2c_rx_byte(7);
+                fid <= i2c_rx_byte(7);
                 rx_opcode <= i2c_rx_byte(6 downto 0);
               -- DATA bytes
               else
@@ -509,7 +513,7 @@ begin
             end if;
           else
             -- TODO: Check here for correct FID and signal error otherwise.
-            fid_prev <= rx_fid;
+            fid_prev <= fid;
             
             frame_rxed_p <= '1';
             ------------------------
