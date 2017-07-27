@@ -62,12 +62,7 @@ entity bemicro_cubes_btm is
     spi_miso_i        : in  std_logic;
     
     siphra_sysclk_o   : out std_logic;
-    siphra_txd_i      : in  std_logic;
-    
-    dbg_cs_n_o        : out std_logic;
-    dbg_sclk_o        : out std_logic;
-    dbg_mosi_o        : out std_logic;
-    dbg_miso_o        : out std_logic
+    siphra_txd_i      : in  std_logic
   );
 end entity bemicro_cubes_btm;
 
@@ -349,18 +344,10 @@ begin
   spi_sclk <= '0';
   spi_mosi <= '0';
   
-  -- Debug outputs
-  dbg_cs_n_o <= spi_cs_n;
-  dbg_sclk_o <= spi_sclk;
-  dbg_mosi_o <= spi_mosi;
-  dbg_miso_o <= spi_miso;
-  
   -- Actual SPI outputs
-  -- TODO: Remove!
-  spi_cs_n_o <= spi_cs_n;
-  spi_sclk_o <= spi_sclk;
-  spi_mosi_o <= spi_mosi;
-  spi_miso   <= spi_miso_i;
+  spi_cs_n_o <= '1';
+  spi_sclk_o <= '0';
+  spi_mosi_o <= '0';
   
 end architecture arch;
 --==============================================================================
