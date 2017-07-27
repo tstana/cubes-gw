@@ -206,6 +206,10 @@ architecture arch of bemicro_cubes_btm is
   signal rst_ext                : std_logic;
   signal rst_n                  : std_logic;
   
+  signal plls_locked            : std_logic;
+  signal plls_locked_d0         : std_logic;
+  signal plls_unlocked_p        : std_logic;
+  
   signal btn                    : std_logic_vector(g_nr_buttons-1 downto 0);
 
   signal led                    : std_logic_vector( 7 downto 0);
@@ -252,7 +256,7 @@ begin
   
   p_reset : process (clk_50meg_i, rst_ext) is
   begin
-    if (rst_ext = '1') then
+    if (rst_ext = '1') or (plls_unlocked_p = '1') then
       rst <= '1';
       rst_count <= (others => '0');
     elsif rising_edge(clk_50meg_i) then
@@ -279,8 +283,19 @@ begin
       clk_adc_o         => clk_adc,
       clk_100meg_o      => clk_100meg,
   
-      main_pll_locked_o => open
+      main_pll_locked_o => plls_locked
     );
+    
+  p_plls_unlocked : process (clk_50meg_i, rst) is
+  begin
+    if (rst = '1') then
+      plls_locked_d0 <= '0';
+      plls_unlocked_p <= '0';
+    elsif rising_edge(clk_50meg_i) then
+      plls_locked_d0 <= plls_locked;
+      plls_unlocked_p <= plls_locked_d0 and (not plls_locked);
+    end if;
+  end process p_plls_unlocked;
     
   --============================================================================
   -- MIST OBC I2C slave to Wishbone master
