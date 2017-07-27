@@ -37,9 +37,13 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+library altera_mf;
+use altera_mf.all;
+
 library work;
 use work.genram_pkg.all;
 use work.msp_pkg.all;
+
 
 
 entity testbench is
@@ -98,14 +102,16 @@ architecture arch of testbench is
   --============================================================================
   -- Constant declarations
   --============================================================================
-  constant c_clk_per           : time := 10 ns;
-  constant c_reset_per         : time := 45 us;
+  -- Clock and reset periods
+  constant c_clk_per           : time := 20 ns;
+  constant c_reset_per         : natural := 5; -- * c_clk_per
   
-  constant c_baud_div_int         : natural := 867;
+  -- UART baud divider
+  constant c_baud_div_int         : natural := 7;
   constant c_baud_div             : std_logic_vector :=
       std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
       
-  constant c_inter_frame_delay    : time := 1 us;
+  constant c_inter_frame_delay    : time := 100 ns;
 
   -- I2C address of slave
   constant c_cubes_i2c_addr       : std_logic_vector(6 downto 0) := to7bits(x"70");
@@ -151,62 +157,48 @@ architecture arch of testbench is
   -------
   -- DUT
   -------
-  component mist_obc_interface is
+  component bemicro_cubes_btm is
     generic
     (
-      g_num_periphs : natural
+      g_nr_buttons      : natural := 1;
+      
+      -- Internal period in 50 MHz clock ticks; this is in addition to the period
+      -- of any external reset the user employs:
+      --
+      -- reset_time = (20 ns * g_reset_period) + <external_reset_period>
+      g_reset_period    : natural := 5000;
+      
+      -- UART baud divider ratio:
+      --    g_baud_div = [f(clk_i) / f(baud)]-1
+      --    Default: 115200 bps with 100 MHz clk_i
+      g_baud_div        : natural := 867
     );
     port
     (
-      -- Clock, active-low reset
-      clk_i       : in  std_logic;
-      rst_n_a_i   : in  std_logic;
+      clk_50meg_i : in  std_logic;
+      btn_n_i     : in  std_logic_vector(g_nr_buttons-1 downto 0);
+
+      led_n_o     : out std_logic_vector(7 downto 0);
       
-      -- I2C lines
-      scl_i       : in  std_logic;
-      scl_o       : out std_logic;
-      scl_en_o    : out std_logic;
-      sda_i       : in  std_logic;
-      sda_o       : out std_logic;
-      sda_en_o    : out std_logic;
-
-      -- I2C address
-      i2c_addr_i  : in  std_logic_vector(6 downto 0);
-
-      -- Status outputs
-      -- TIP  : Transfer In Progress
-      --        '1' when the I2C slave detects a matching I2C address, thus a
-      --            transfer is in progress
-      --        '0' when idle
-      -- ERR  : Error
-      --       '1' when the SysMon attempts to access an invalid WB slave
-      --       '0' when idle
-      -- WDTO : Watchdog timeout (single clock cycle pulse)
-      --        '1' -- timeout of watchdog occured
-      --        '0' -- when idle
-      tip_o       : out std_logic;
-      err_p_o     : out std_logic;
-      wdto_p_o    : out std_logic;
-      
-      -- Peripheral module signals
-      periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
-      periph_buf_data_i   : in  std_logic_vector(7 downto 0);
-      periph_buf_data_o   : out std_logic_vector(7 downto 0);
-      periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
-      periph_buf_we_p_i   : in  std_logic;
-      periph_data_rdy_p_o : out std_logic;
-
-      -- TEMPORARY: UART RX and TX
       rxd_i       : in  std_logic;
-      txd_o       : out std_logic
+      txd_o       : out std_logic;
+      
+      spi_cs_n_o        : out std_logic;
+      spi_sclk_o        : out std_logic;
+      spi_mosi_o        : out std_logic;
+      spi_miso_i        : in  std_logic;
+      
+      siphra_sysclk_o   : out std_logic;
+      siphra_txd_i      : in  std_logic
     );
-  end component mist_obc_interface;
+  end component bemicro_cubes_btm;
 
   --============================================================================
   -- Signal declarations
   --============================================================================
   -- Clock, reset signals
-  signal clk_100meg, rst_n          : std_logic;
+  signal clk_50meg, rst_n          : std_logic;
+  signal rst_count                 : natural;
   
   -- Current state of master
   signal frame_state               : t_frame_state;
@@ -242,18 +234,13 @@ architecture arch of testbench is
   signal data_buf                   : t_data_buf_ram;
   signal data_buf_addr              : natural;
   
-  -- Other signals to/from the DUT
-  signal periph_sel                 : std_logic_vector(f_log2_size(c_num_periphs)-1 downto 0);
-  signal obc_data_rdy_p             : std_logic;
-  signal data_from_obc              : std_logic_vector(7 downto 0);
-  
   -- 1us counter between transactions
   signal delay_count                : natural;
   signal delay_count_done_p         : std_logic;
   signal first_run                  : boolean := true;
   
-  -- DUT-specific signals (mimicking logic in synthesizable gateware)
-  signal led                        : std_logic_vector(7 downto 0);
+  -- DUT-specific signals
+  signal led_n, led                 : std_logic_vector(7 downto 0);
     
 --==============================================================================
 --  architecture begin
@@ -265,16 +252,19 @@ begin
   --============================================================================
   P_CLK : process
   begin
-    clk_100meg <= '1';
+    clk_50meg <= '1';
     wait for c_clk_per/2;
-    clk_100meg <= '0';
+    clk_50meg <= '0';
     wait for c_clk_per/2;
   end process P_CLK;
   
   P_RST : process
   begin
     rst_n <= '0';
-    wait for c_reset_per;
+    while (rst_count < c_reset_per) loop
+      wait until clk_50meg = '1';
+      rst_count <= rst_count + 1;
+    end loop;
     rst_n <= '1';
     wait;
   end process P_RST;
@@ -291,7 +281,7 @@ begin
     port map
     (
       -- Clock, reset
-      clk_i         => clk_100meg,
+      clk_i         => clk_50meg,
       rst_n_a_i     => rst_n,
 
       -- Ports to external world
@@ -322,7 +312,7 @@ begin
     procedure pulse(signal sig_p : out std_logic) is
     begin
       sig_p <= '1';
-      wait until rising_edge(clk_100meg);
+      wait until rising_edge(clk_50meg);
       sig_p <= '0';
     end procedure;
     ----------------------------------------------------------------------------
@@ -348,7 +338,7 @@ begin
       
       header_buf(39 downto 32) <= fid_in & opcode_in;
       header_buf(31 downto  0) <= dl_in;
-      wait until rising_edge(clk_100meg);
+      wait until rising_edge(clk_50meg);
       
       while (frame_byte_count < c_msp_dl_num_bytes) loop
         master_tx_data <= header_buf(39 downto 32);
@@ -555,57 +545,42 @@ begin
   --============================================================================
   -- DUT
   --============================================================================
-  U_DUT : mist_obc_interface
+  U_DUT : bemicro_cubes_btm
     generic map
     (
-      g_num_periphs => c_num_periphs
+      g_nr_buttons      => 1,
+      
+      -- Internal period in 50 MHz clock ticks; this is in addition to the period
+      -- of any external reset the user employs:
+      --
+      -- reset_time = (20 ns * g_reset_period) + <external_reset_period>
+      g_reset_period    => c_reset_per,
+      
+      -- UART baud divider ratio:
+      --    g_baud_div = [f(clk_i) / f(baud)]-1
+      --    Default: 115200 bps with 100 MHz clk_i
+      g_baud_div        => 2*(1+c_baud_div_int)-1
     )
     port map
     (
-      -- Clock, active-low reset
-      clk_i       => clk_100meg,
-      rst_n_a_i   => rst_n,
+      clk_50meg_i       => clk_50meg,
+      btn_n_i           => (others => '1'),
+
+      led_n_o           => led_n,
       
-      -- I2C lines
-      scl_i       => '0',
-      scl_o       => open,
-      scl_en_o    => open,
-      sda_i       => '0',
-      sda_o       => open,
-      sda_en_o    => open,
-
-      -- I2C address
-      i2c_addr_i  => c_cubes_i2c_addr,
-
-      -- Unused
-      tip_o       => open,
-      err_p_o     => open,
-      wdto_p_o    => open,
-
-      -- External module enable
-      periph_sel_o        => periph_sel,
-      periph_buf_data_i   => (others => '0'),
-      periph_buf_data_o   => data_from_obc,
-      periph_buf_addr_i   => (others => '0'),
-      periph_buf_we_p_i   => '0',
-      periph_data_rdy_p_o => obc_data_rdy_p,
-
-      -- TEMPORARY: UART RX and TX
-      rxd_i       => master_txd,
-      txd_o       => master_rxd
+      rxd_i             => master_txd,
+      txd_o             => master_rxd,
+      
+      spi_cs_n_o        => open,
+      spi_sclk_o        => open,
+      spi_mosi_o        => open,
+      spi_miso_i        => '0',
+      
+      siphra_sysclk_o   => open,
+      siphra_txd_i      => '0'
     );
     
-  -- Debug LEDs
-  P_DEBUG_LEDS : process (clk_100meg, rst_n) is
-  begin
-    if (rst_n = '0') then
-      led <= (others => '0');
-    elsif rising_edge(clk_100meg) then
-      if (periph_sel = "1") and (obc_data_rdy_p = '1') then
-        led <= data_from_obc;
-      end if;
-    end if;
-  end process;
+  led <= not led_n;
 
 end architecture arch;
 --==============================================================================
