@@ -317,6 +317,8 @@ begin
   p_stim : process is
     
     ----------------------------------------------------------------------------
+    -- Sub-procedures used within transaction
+    ----------------------------------------------------------------------------
     procedure pulse(signal sig_p : out std_logic) is
     begin
       sig_p <= '1';
@@ -426,6 +428,54 @@ begin
       data_buf_addr <= 0;
     end procedure;
     ----------------------------------------------------------------------------
+    
+    ----------------------------------------------------------------------------
+    -- Procedure to send a transaction
+    ----------------------------------------------------------------------------
+    procedure run_transaction (
+      cmd_in : in  std_logic_vector
+    ) is
+    begin
+      opcode <= cmd_in;
+      dl <= x"00000001";
+      frame_data_bytes <= 1;
+      trans_data_bytes <= 1;
+      
+      wait for c_inter_frame_delay;
+      
+      -- Send transaction header
+      trans_state <= TRANS_HEADER;
+      fid <= not fid;
+      tid <= not fid;
+      send_i2c_addr;
+      send_header(opcode, fid, dl);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+      
+      -- Receive F_ACK
+      trans_state <= RX_F_ACK;
+      send_i2c_addr;
+      receive_header(opcode, rx_fid, dl);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+      
+      -- Send DATA_FRAME
+      trans_state <= TX_DATA_FRAME;
+      fid <= not fid;
+      send_i2c_addr;
+      send_data(fid, frame_data_bytes);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+      
+      -- Receive T_ACK
+      trans_state <= RX_T_ACK;
+      send_i2c_addr;
+      receive_header(opcode, rx_fid, dl);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+      
+      end_transaction;
+    end procedure;
 
   ------------------------------------------------------------------------------
   -- Stimuli process start
@@ -458,97 +508,20 @@ begin
     wait until rst_n = '1';
     
     ----------------------------------------------------------------------------
-    -- Prepare SET_LEDS command
+    -- Transactions
     ----------------------------------------------------------------------------
-    opcode <= c_msp_op_set_leds;
-    dl <= x"00000001";
-    frame_data_bytes <= 1;
-    trans_data_bytes <= 1;
     data_buf(0) <= x"ff";
-    
-    wait for c_inter_frame_delay;
-    
-    -- Send transaction header
-    trans_state <= TRANS_HEADER;
-    fid <= not fid;
-    tid <= not fid;
-    send_i2c_addr;
-    send_header(opcode, fid, dl);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    -- Receive F_ACK
-    trans_state <= RX_F_ACK;
-    send_i2c_addr;
-    receive_header(opcode, rx_fid, dl);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    -- Send DATA_FRAME
-    trans_state <= TX_DATA_FRAME;
-    fid <= not fid;
-    send_i2c_addr;
-    send_data(fid, frame_data_bytes);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    -- Receive T_ACK
-    trans_state <= RX_T_ACK;
-    send_i2c_addr;
-    receive_header(opcode, rx_fid, dl);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    end_transaction;
-    ----------------------------------------------------------------------------
+    run_transaction(c_msp_op_set_leds);
 
-    ----------------------------------------------------------------------------
-    -- Prepare SET_LEDS command
-    ----------------------------------------------------------------------------
-    opcode <= c_msp_op_set_leds;
-    dl <= x"00000001";
-    frame_data_bytes <= 1;
-    trans_data_bytes <= 1;
     data_buf(0) <= x"12";
-    
-    wait for c_inter_frame_delay;
-    
-    -- Send transaction header
-    trans_state <= TRANS_HEADER;
-    fid <= not fid;
-    tid <= not fid;
-    send_i2c_addr;
-    send_header(opcode, fid, dl);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    -- Receive F_ACK
-    trans_state <= RX_F_ACK;
-    send_i2c_addr;
-    receive_header(opcode, rx_fid, dl);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    -- Send DATA_FRAME
-    trans_state <= TX_DATA_FRAME;
-    fid <= not fid;
-    send_i2c_addr;
-    send_data(fid, frame_data_bytes);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    -- Receive T_ACK
-    trans_state <= RX_T_ACK;
-    send_i2c_addr;
-    receive_header(opcode, rx_fid, dl);
-    pulse(frame_end_p);
-    wait for c_inter_frame_delay;
-    
-    end_transaction;
-    ----------------------------------------------------------------------------
+    run_transaction(c_msp_op_set_leds);
 
-   wait;
-  end process;
+    ----------------------------------------------------------------------------
+    -- End stimuli
+    ----------------------------------------------------------------------------
+    wait;
+    
+  end process p_stim;
   ------------------------------------------------------------------------------
   
   --============================================================================
