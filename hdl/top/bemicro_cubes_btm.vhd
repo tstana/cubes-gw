@@ -195,6 +195,9 @@ architecture arch of bemicro_cubes_btm is
   signal btn                    : std_logic_vector(g_nr_buttons-1 downto 0);
 
   signal led                    : std_logic_vector( 7 downto 0);
+  signal led_sequenced          : std_logic;
+  signal led_sequence_div       : unsigned(20 downto 0);
+  signal led_sequence_count     : unsigned( 3 downto 0);
   
   signal obc_periph_sel         : std_logic_vector(f_log2_size(c_obc_num_periphs)-1 downto 0);
   signal data_from_obc_rdy_p    : std_logic;
@@ -206,7 +209,6 @@ architecture arch of bemicro_cubes_btm is
   signal spi_sclk : std_logic;
   signal spi_mosi : std_logic;
   signal spi_miso : std_logic;
-  signal count    : unsigned(16 downto 0);
 
 --==============================================================================
 --  architecture begin
@@ -307,9 +309,33 @@ begin
   begin
     if (rst_n = '0') then
       led <= (others => '0');
+      led_sequenced <= '0';
+      led_sequence_div <= (others => '0');
+      led_sequence_count <= (others => '0');
     elsif rising_edge(clk_100meg) then
-      if (obc_periph_sel = c_obc_sel_leds) and (data_from_obc_rdy_p = '1') then
-        led <= data_from_obc;
+      -- Sequence the LEDs on reset
+      if (led_sequenced = '0') then
+        led_sequence_div <= led_sequence_div + 1;
+        if (led_sequence_div = 1_249_999) then
+          led_sequence_div <= (others => '0');
+          led_sequence_count <= led_sequence_count + 1;
+          if (led_sequence_count = 0) then
+            led <= x"01";
+          elsif (led_sequence_count < 8) then
+            led <= led(6 downto 0) & '0';
+          elsif (led_sequence_count < 15) then
+            led <= '0' & led(7 downto 1);
+          else
+            led <= (others => '0');
+            led_sequenced <= '1';
+          end if;
+        end if;
+        
+      -- After reset, use setting obtained from OBC
+      else
+        if (obc_periph_sel = c_obc_sel_leds) and (data_from_obc_rdy_p = '1') then
+          led <= data_from_obc;
+        end if;
       end if;
     end if;
   end process;
