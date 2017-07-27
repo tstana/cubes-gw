@@ -242,6 +242,11 @@ architecture arch of testbench is
   -- DUT-specific signals
   signal led_n, led                 : std_logic_vector(7 downto 0);
     
+  --============================================================================
+  -- Alias declarations
+  --============================================================================
+  alias dut_plls_locked is <<signal .testbench.U_DUT.plls_locked : std_logic>>;
+  
 --==============================================================================
 --  architecture begin
 --==============================================================================
@@ -496,6 +501,8 @@ begin
     frame_end_p <= '0';
     
     wait until rst_n = '1';
+    
+    wait until dut_plls_locked = '1';
     
     ----------------------------------------------------------------------------
     -- Transactions
