@@ -6,6 +6,7 @@ add wave -noupdate /testbench/rst_n
 add wave -noupdate -divider Master
 add wave -noupdate /testbench/trans_state
 add wave -noupdate /testbench/frame_state
+add wave -noupdate /testbench/frame_end_p
 add wave -noupdate /testbench/master_tx_ready
 add wave -noupdate -radix hexadecimal /testbench/master_tx_data
 add wave -noupdate -radix hexadecimal /testbench/header_buf

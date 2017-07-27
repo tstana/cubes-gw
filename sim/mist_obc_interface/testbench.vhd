@@ -236,6 +236,8 @@ architecture arch of testbench is
   signal frame_data_bytes           : natural;
   signal trans_data_bytes           : natural;
   
+  signal frame_end_p                : std_logic;
+  
   signal header_buf                 : std_logic_vector(39 downto 0);
   signal data_buf                   : t_data_buf_ram;
   signal data_buf_addr              : natural;
@@ -312,15 +314,18 @@ begin
   --============================================================================
   -- Stimuli and monitor processes
   --============================================================================
-  P_STIM : process is
+  p_stim : process is
     
+    ----------------------------------------------------------------------------
     procedure pulse(signal sig_p : out std_logic) is
     begin
       sig_p <= '1';
       wait until rising_edge(clk_100meg);
       sig_p <= '0';
     end procedure;
+    ----------------------------------------------------------------------------
     
+    ----------------------------------------------------------------------------
     procedure send_i2c_addr is
     begin
       frame_state <= I2C_ADDR;
@@ -328,7 +333,9 @@ begin
       pulse(master_tx_start_p);
       wait until master_tx_ready = '1';
     end procedure;
+    ----------------------------------------------------------------------------
     
+    ----------------------------------------------------------------------------
     procedure send_header (
       signal opcode  : in std_logic_vector;
       signal fid     : in std_logic;
@@ -352,7 +359,9 @@ begin
       frame_byte_count <= 0;
       frame_state <= WAITING;
     end procedure;
+    ----------------------------------------------------------------------------
     
+    ----------------------------------------------------------------------------
     procedure receive_header (
       signal opcode  : out std_logic_vector;
       signal fid     : out std_logic;
@@ -381,7 +390,9 @@ begin
       frame_byte_count <= 0;
       frame_state <= WAITING;
     end procedure;
+    ----------------------------------------------------------------------------
     
+    ----------------------------------------------------------------------------
     procedure send_data (
       signal fid                : in  std_logic;
       signal frame_data_bytes   : in  natural
@@ -406,12 +417,15 @@ begin
       frame_state <= WAITING;
       frame_byte_count <= 0;
     end procedure;
+    ----------------------------------------------------------------------------
     
+    ----------------------------------------------------------------------------
     procedure end_transaction is
     begin
       trans_state <= IDLE;
       data_buf_addr <= 0;
     end procedure;
+    ----------------------------------------------------------------------------
 
   ------------------------------------------------------------------------------
   -- Stimuli process start
@@ -439,6 +453,7 @@ begin
     frame_byte_count <= 0;
     trans_data_bytes <= 0;
     frame_data_bytes <= 0;
+    frame_end_p <= '0';
     
     wait until rst_n = '1';
     
@@ -455,29 +470,33 @@ begin
     
     -- Send transaction header
     trans_state <= TRANS_HEADER;
-    tid <= fid;
+    fid <= not fid;
+    tid <= not fid;
     send_i2c_addr;
     send_header(opcode, fid, dl);
-    fid <= not fid;
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
     receive_header(opcode, rx_fid, dl);
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
     trans_state <= TX_DATA_FRAME;
+    fid <= not fid;
     send_i2c_addr;
     send_data(fid, frame_data_bytes);
-    fid <= not fid;
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
     receive_header(opcode, rx_fid, dl);
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     end_transaction;
@@ -496,29 +515,33 @@ begin
     
     -- Send transaction header
     trans_state <= TRANS_HEADER;
-    tid <= fid;
+    fid <= not fid;
+    tid <= not fid;
     send_i2c_addr;
     send_header(opcode, fid, dl);
-    fid <= not fid;
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     -- Receive F_ACK
     trans_state <= RX_F_ACK;
     send_i2c_addr;
     receive_header(opcode, rx_fid, dl);
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     -- Send DATA_FRAME
     trans_state <= TX_DATA_FRAME;
+    fid <= not fid;
     send_i2c_addr;
     send_data(fid, frame_data_bytes);
-    fid <= not fid;
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     -- Receive T_ACK
     trans_state <= RX_T_ACK;
     send_i2c_addr;
     receive_header(opcode, rx_fid, dl);
+    pulse(frame_end_p);
     wait for c_inter_frame_delay;
     
     end_transaction;
