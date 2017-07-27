@@ -339,15 +339,15 @@ begin
     
     ----------------------------------------------------------------------------
     procedure send_header (
-      signal opcode  : in std_logic_vector;
-      signal fid     : in std_logic;
-      signal dl      : in std_logic_vector
+      signal opcode_in  : in std_logic_vector;
+      signal fid_in     : in std_logic;
+      signal dl_in      : in std_logic_vector
     ) is
     begin
       frame_state <= TX_HEADER_BYTES;
       
-      header_buf(39 downto 32) <= fid & opcode;
-      header_buf(31 downto  0) <= dl;
+      header_buf(39 downto 32) <= fid_in & opcode_in;
+      header_buf(31 downto  0) <= dl_in;
       wait until rising_edge(clk_100meg);
       
       while (frame_byte_count < c_msp_dl_num_bytes) loop
@@ -365,9 +365,9 @@ begin
     
     ----------------------------------------------------------------------------
     procedure receive_header (
-      signal opcode  : out std_logic_vector;
-      signal fid     : out std_logic;
-      signal dl      : out std_logic_vector
+      signal opcode_out   : out std_logic_vector;
+      signal fid_out      : out std_logic;
+      signal dl_out       : out std_logic_vector
     ) is
     
       variable dl_int : std_logic_vector(31 downto 0) := (others => '0');
@@ -379,15 +379,15 @@ begin
         wait until master_rx_ready = '1';
         frame_byte_count <= frame_byte_count + 1;
         if (frame_byte_count = 0) then
-          fid <= master_rx_data(7);
-          opcode <= master_rx_data(6 downto 0);
+          fid_out <= master_rx_data(7);
+          opcode_out <= master_rx_data(6 downto 0);
           -- TODO: Wait one clock cycle and check FID + OPCODE byte?
         else
           dl_int := dl_int(23 downto 0) & master_rx_data;
         end if;
       end loop;
       
-      dl <= dl_int;
+      dl_out <= dl_int;
       
       frame_byte_count <= 0;
       frame_state <= WAITING;
@@ -396,18 +396,18 @@ begin
     
     ----------------------------------------------------------------------------
     procedure send_data (
-      signal fid                : in  std_logic;
-      signal frame_data_bytes   : in  natural
+      signal fid_in                 : in  std_logic;
+      signal frame_data_bytes_in    : in  natural
     ) is
     begin
       frame_state <= TX_DATA_BYTES;
 
-      master_tx_data <= fid & c_msp_op_data_frame;
+      master_tx_data <= fid_in & c_msp_op_data_frame;
       pulse(master_tx_start_p);
       wait until master_tx_ready = '1';
       frame_byte_count <= 1;
       
-      while (frame_byte_count < frame_data_bytes) loop
+      while (frame_byte_count < frame_data_bytes_in) loop
         master_tx_data <= data_buf(data_buf_addr);
         pulse(master_tx_start_p);
         data_buf_addr <= data_buf_addr + 1;
