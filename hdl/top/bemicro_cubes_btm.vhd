@@ -46,9 +46,16 @@ entity bemicro_cubes_btm is
   (
     g_nr_buttons      : natural := 1;
     
-    -- Internal period in 50 MHz clock ticks
-    -- reset_time = 20 ns * g_reset_period
-    g_reset_period    : natural := 5000
+    -- Internal period in 50 MHz clock ticks; this is in addition to the period
+    -- of any external reset the user employs:
+    --
+    -- reset_time = (20 ns * g_reset_period) + <external_reset_period>
+    g_reset_period    : natural := 5000;
+    
+    -- UART baud divider ratio:
+    --    g_baud_div = [f(clk_i) / f(baud)]-1
+    --    Default: 115200 bps with 100 MHz clk_i
+    g_baud_div        : natural := 867
   );
   port
   (
@@ -134,7 +141,13 @@ architecture arch of bemicro_cubes_btm is
   component mist_obc_interface is
     generic
     (
-      g_num_periphs : natural
+      -- Number of peripherals to OBC interface component
+      g_num_periphs : natural;
+
+      -- Baud divider ratio:
+      --    g_baud_div = [f(clk_i) / f(baud)]-1
+      --    Default: 115200 bps with 100 MHz clk_i
+      g_baud_div : natural := 867
     );
     port
     (
@@ -275,7 +288,8 @@ begin
   cmp_obc_interface : mist_obc_interface
     generic map
     (
-      g_num_periphs => 1
+      g_num_periphs => 1,
+      g_baud_div    => g_baud_div
     )
     port map
     (

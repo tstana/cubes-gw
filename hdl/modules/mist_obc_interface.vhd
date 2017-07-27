@@ -43,7 +43,13 @@ use work.msp_pkg.all;
 entity mist_obc_interface is
   generic
   (
-    g_num_periphs : natural
+    -- Number of peripherals to OBC interface component
+    g_num_periphs : natural;
+
+    -- Baud divider ratio:
+    --    g_baud_div = [f(clk_i) / f(baud)]-1
+    --    Default: 115200 bps with 100 MHz clk_i
+    g_baud_div : natural := 867
   );
   port
   (
@@ -131,6 +137,13 @@ architecture behav of mist_obc_interface is
   -- Component declarations
   --============================================================================
   component mist_uart_wrapper is
+    generic
+    (
+      -- Baud divider ratio:
+      --    g_baud_div = [f(clk_i) / f(baud)]-1
+      --    Default: 115200 bps with 100 MHz clk_i
+      g_baud_div : natural := 867
+    );
     port
     (
       -- Clock, reset
@@ -215,6 +228,10 @@ begin
   -- Instantiate I2C slave module
   --============================================================================
   U_HW_COMM : mist_uart_wrapper
+    generic map
+    (
+      g_baud_div => g_baud_div
+    )
     port map
     (
       -- Clock, reset

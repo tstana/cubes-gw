@@ -41,6 +41,13 @@ use work.genram_pkg.all;
 
 
 entity mist_uart_wrapper is
+  generic
+  (
+    -- Baud divider ratio:
+    --    g_baud_div = [f(clk_i) / f(baud)]-1
+    --    Default: 115200 bps with 100 MHz clk_i
+    g_baud_div : natural := 867
+  );
   port
   (
     -- Clock, reset
@@ -87,7 +94,7 @@ architecture behav of mist_uart_wrapper is
   --============================================================================
   -- Constant declarations
   --============================================================================
-  constant c_baud_div_int : natural := 867;       -- assumes 100 MHz clk_i
+  constant c_baud_div_int : natural := g_baud_div;
   constant c_baud_div     : std_logic_vector := 
       std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
 
