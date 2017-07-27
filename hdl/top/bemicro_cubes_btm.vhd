@@ -44,7 +44,11 @@ use work.msp_pkg.all;
 entity bemicro_cubes_btm is
   generic
   (
-    g_nr_buttons : natural := 1
+    g_nr_buttons      : natural := 1;
+    
+    -- Internal period in 50 MHz clock ticks
+    -- reset_time = 20 ns * g_reset_period
+    g_reset_period    : natural := 5000
   );
   port
   (
@@ -184,8 +188,10 @@ architecture arch of bemicro_cubes_btm is
   signal clk_100meg             : std_logic;
   signal clk_adc                : std_logic;
 
+  signal rst                    : std_logic := '1';
+  signal rst_count              : unsigned(f_log2_size(g_reset_period)-1 downto 0) := (others => '0');
+  signal rst_ext                : std_logic;
   signal rst_n                  : std_logic;
-  signal rst                    : std_logic;
   
   signal btn                    : std_logic_vector(g_nr_buttons-1 downto 0);
 
@@ -211,7 +217,7 @@ architecture arch of bemicro_cubes_btm is
 begin
 
   --============================================================================
-  -- Reset signal generation from debounced button
+  -- Button debouncer for use in e.g., reset
   --============================================================================
   cmp_btn_debounce : debouncer
     generic map
@@ -225,8 +231,27 @@ begin
       btn_n_i => btn_n_i,
       btn_o   => btn
     );
+
+  --============================================================================
+  -- Reset signal generation
+  --============================================================================
+  rst_ext <= btn(0);
   
-  rst   <= btn(0);
+  p_reset : process (clk_50meg_i, rst_ext) is
+  begin
+    if (rst_ext = '1') then
+      rst <= '1';
+      rst_count <= (others => '0');
+    elsif rising_edge(clk_50meg_i) then
+      if (rst = '1') then
+        rst_count <= rst_count + 1;
+        if (rst_count = g_reset_period-1) then
+          rst <= '0';
+        end if;
+      end if;
+    end if;
+  end process;
+
   rst_n <= not rst;
 
   --============================================================================
