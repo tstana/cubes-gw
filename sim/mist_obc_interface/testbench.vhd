@@ -522,8 +522,36 @@ begin
     wait;
     
   end process p_stim;
+  
   ------------------------------------------------------------------------------
   
+  p_monitor : process is
+  begin
+    ERROR <= '0';
+    wait until rst_n = '1';
+    
+    while true loop
+      wait until frame_end_p = '1';
+      
+      case trans_state is
+        when TRANS_HEADER =>
+          null;
+        when RX_F_ACK =>
+          if (rx_fid /= fid) or (opcode /= c_msp_op_f_ack) then
+            ERROR <= '1';
+          end if;
+        when RX_T_ACK =>
+          if (rx_fid /= tid) or (opcode /= c_msp_op_t_ack) then
+            ERROR <= '1';
+          end if;
+        when others =>
+          null;
+      end case;
+    end loop;
+    
+    wait;
+  end process p_monitor;
+    
   --============================================================================
   -- DUT
   --============================================================================
