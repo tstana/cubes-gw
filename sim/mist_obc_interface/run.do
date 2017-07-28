@@ -14,7 +14,7 @@ vcom -93 -work work {../../hdl/bemicro/mist_uart_wrapper.vhd}
 vcom -93 -work work {../../hdl/modules/msp_pkg.vhd}
 vcom -93 -work work {../../hdl/modules/mist_obc_interface.vhd}
 vcom -93 -work work {../../hdl/top/bemicro_cubes_btm.vhd}
-vcom -93 -work work {testbench.vhd}
+vcom -2008 -work work {testbench.vhd}
 
 vsim -t 1ps -voptargs="+acc" -lib work work.testbench
 
