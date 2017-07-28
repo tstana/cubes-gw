@@ -107,7 +107,7 @@ architecture arch of testbench is
   constant c_reset_per         : natural := 5; -- * c_clk_per
   
   -- UART baud divider
-  constant c_baud_div_int         : natural := 7;
+  constant c_baud_div_int         : natural := 5;
   constant c_baud_div             : std_logic_vector :=
       std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
       
@@ -566,7 +566,7 @@ begin
       -- UART baud divider ratio:
       --    g_baud_div = [f(clk_i) / f(baud)]-1
       --    Default: 115200 bps with 100 MHz clk_i
-      g_baud_div        => 2*(1+c_baud_div_int)-1
+      g_baud_div        => 2*c_baud_div_int + 1
     )
     port map
     (
