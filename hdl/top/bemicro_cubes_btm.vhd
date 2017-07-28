@@ -54,7 +54,7 @@ entity bemicro_cubes_btm is
     
     -- UART baud divider ratio:
     --    g_baud_div = [f(clk_i) / f(baud)]-1
-    --    Default: 115200 bps with 100 MHz clk_i
+    --    Default: 115200 bps with 100 MHz clock at UART module port "clk_i"
     g_baud_div        : natural := 867
   );
   port
