@@ -59,7 +59,7 @@ architecture behav of uart is
   signal baud_en            : std_logic;
   signal baud_div           : unsigned(g_baud_div_bits-1 downto 0);
   signal baud_tick          : std_logic;
-  signal baud_div_halfbit   : unsigned(g_baud_div_bits-2 downto 0);
+  signal baud_div_halfbit   : unsigned(g_baud_div_bits-1 downto 0);
   signal baud_halfbit_tick  : std_logic;
 
   signal state_tx           : t_state_tx;
@@ -90,8 +90,8 @@ begin
   -- Baud divider enable
   baud_en <= tx_baud_en or rx_baud_en;
 
-  -- Divider at half-bit
-  baud_div_halfbit <= unsigned(baud_div_i(baud_div'high downto 1));
+  -- Divide baud_div_i by two to generate baud_halfbit_tick
+  baud_div_halfbit <= '0' & unsigned(baud_div_i(baud_div'high downto 1));
 
   -- Baud rate generation process
   p_baud_div : process (clk_i, rst_n_a_i) is
@@ -101,18 +101,20 @@ begin
       baud_tick         <= '0';
       baud_halfbit_tick <= '0';
     elsif rising_edge(clk_i) then
-      baud_div <= (others => '0');
-      if (baud_en = '1') then
+      baud_tick <= '0';
+      baud_halfbit_tick <= '0';
+
+      if (baud_en = '0') then
+        baud_div <= (others => '0');
+      else
         baud_div  <= baud_div + 1;
-        baud_tick <= '0';
         if (baud_div = unsigned(baud_div_i)) or
               ((rx_sta = '1') and (state_rx = RX_STOP)) then
           baud_div  <= (others => '0');
           baud_tick <= '1';
         end if;
 
-        baud_halfbit_tick <= '0';
-        if (baud_div(baud_div'high-1 downto 0) = baud_div_halfbit) then
+        if (baud_div = baud_div_halfbit) then
           baud_halfbit_tick <= '1';
         end if;
       end if;
