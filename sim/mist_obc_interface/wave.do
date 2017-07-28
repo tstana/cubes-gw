@@ -1,6 +1,7 @@
 onerror {resume}
 quietly WaveActivateNextPane {} 0
 add wave -noupdate -divider {Clock, reset}
+add wave -noupdate /testbench/clk_50meg
 add wave -noupdate /testbench/rst_n
 add wave -noupdate -divider Master
 add wave -noupdate /testbench/trans_state
@@ -24,14 +25,14 @@ add wave -noupdate -radix unsigned /testbench/dl
 add wave -noupdate -divider ERROR
 add wave -noupdate /testbench/ERROR
 add wave -noupdate -divider DUT
-add wave -noupdate /testbench/U_DUT/clk_50meg_i
-add wave -noupdate /testbench/U_DUT/rst
-add wave -noupdate /testbench/U_DUT/rst_n
-add wave -noupdate /testbench/U_DUT/clk_100meg
+add wave -noupdate /testbench/cmp_dut/clk_50meg_i
+add wave -noupdate /testbench/cmp_dut/rst
+add wave -noupdate /testbench/cmp_dut/rst_n
+add wave -noupdate /testbench/cmp_dut/clk_100meg
 add wave -noupdate -radix hexadecimal /testbench/led
 add wave -noupdate -divider DUT/OBC-intf
-add wave -noupdate /testbench/U_DUT/cmp_obc_interface/frame_state
-add wave -noupdate /testbench/U_DUT/cmp_obc_interface/trans_state
+add wave -noupdate /testbench/cmp_dut/cmp_obc_interface/frame_state
+add wave -noupdate /testbench/cmp_dut/cmp_obc_interface/trans_state
 TreeUpdate [SetDefaultTree]
 WaveRestoreCursors {{Cursor 1} {228021 ps} 0}
 quietly wave cursor active 1

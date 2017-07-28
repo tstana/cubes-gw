@@ -227,7 +227,7 @@ begin
   --============================================================================
   -- Instantiate I2C slave module
   --============================================================================
-  U_HW_COMM : mist_uart_wrapper
+  cmp_hw_comm : mist_uart_wrapper
     generic map
     (
       g_baud_div => g_baud_div
@@ -266,7 +266,7 @@ begin
   --============================================================================
   -- Transaction FSM - handles sending of frames within a transaction
   --============================================================================
-  P_TRANS_FSM : process (clk_i, rst_n_a_i) is
+  p_trans_fsm : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
       trans_state <= IDLE;
@@ -354,13 +354,13 @@ begin
       end case;
       
     end if;
-  end process;
+  end process p_trans_fsm;
   
   --============================================================================
   -- Frame FSM - handles sending of bytes within a frame
   --============================================================================
   -- Process for the FSM
-  P_FRAME_FSM : process (clk_i, rst_n_a_i)
+  p_frame_fsm : process (clk_i, rst_n_a_i)
   begin
     if (rst_n_a_i = '0') then
       frame_state <= WAIT_I2C_ADDR;
@@ -546,12 +546,12 @@ begin
       end case;
       
     end if;
-  end process;
+  end process p_frame_fsm;
   
   --============================================================================
   -- Dual-port RAM for the data buffer
   --============================================================================
-  U_BUFFER_RAM : generic_dpram
+  cmp_buffer_ram : generic_dpram
     generic map
     (
       g_data_width                => 8,

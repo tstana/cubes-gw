@@ -245,8 +245,8 @@ architecture arch of testbench is
   --============================================================================
   -- Alias declarations
   --============================================================================
-  alias dut_plls_locked is <<signal .testbench.U_DUT.plls_locked : std_logic>>;
-  
+  alias dut_plls_locked is <<signal .testbench.cmp_dut.plls_locked : std_logic>>;
+
 --==============================================================================
 --  architecture begin
 --==============================================================================
@@ -255,15 +255,15 @@ begin
   --============================================================================
   -- Clock and reset signals
   --============================================================================
-  P_CLK : process
+  p_clk : process
   begin
     clk_50meg <= '1';
     wait for c_clk_per/2;
     clk_50meg <= '0';
     wait for c_clk_per/2;
-  end process P_CLK;
+  end process p_clk;
   
-  P_RST : process
+  p_rst : process
   begin
     rst_n <= '0';
     while (rst_count < c_reset_per) loop
@@ -272,13 +272,13 @@ begin
     end loop;
     rst_n <= '1';
     wait;
-  end process P_RST;
+  end process p_rst;
 
   --============================================================================
   -- Implement "I2C master" over UART
   --============================================================================
   -- Instantiate component
-  U_UART : uart
+  cmp_uart : uart
     generic map
     (
       g_baud_div_bits => f_log2_size(c_baud_div_int)
@@ -471,7 +471,7 @@ begin
       
       end_transaction;
     end procedure;
-
+  
   ------------------------------------------------------------------------------
   -- Stimuli process start
   ------------------------------------------------------------------------------
@@ -552,7 +552,7 @@ begin
   --============================================================================
   -- DUT
   --============================================================================
-  U_DUT : bemicro_cubes_btm
+  cmp_dut : bemicro_cubes_btm
     generic map
     (
       g_nr_buttons      => 1,
