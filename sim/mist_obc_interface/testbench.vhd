@@ -247,6 +247,8 @@ architecture arch of testbench is
   --============================================================================
   alias dut_plls_locked
     is <<signal .testbench.cmp_dut.plls_locked : std_logic>>;
+  alias dut_led_sequenced
+    is <<signal .testbench.cmp_dut.led_sequenced : std_logic>>;
 
 --==============================================================================
 --  architecture begin
@@ -504,15 +506,10 @@ begin
     wait until rst_n = '1';
     
     wait until dut_plls_locked = '1';
-    
-    wait for c_inter_frame_delay;
-    
-    wait until rising_edge(clk_50meg);
-    dut_plls_locked <= force '0';
-    wait until rising_edge(clk_50meg);
-    dut_plls_locked <= release;
-    
-    wait until dut_plls_locked = '1';
+
+    -- Force the LED sequencing on reset to end, to be able to use the LEDs
+    dut_led_sequenced <= force '1';
+    dut_led_sequenced <= release;
     
     ----------------------------------------------------------------------------
     -- Transactions
