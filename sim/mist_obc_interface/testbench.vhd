@@ -315,17 +315,18 @@ begin
   p_stim : process is
     
     ----------------------------------------------------------------------------
-    -- Sub-procedures used within transaction
+    -- Procedures used within frames
     ----------------------------------------------------------------------------
+    
     procedure pulse(signal sig_p : out std_logic) is
     begin
       sig_p <= '1';
       wait until rising_edge(clk_50meg);
       sig_p <= '0';
     end procedure;
-    ----------------------------------------------------------------------------
     
     ----------------------------------------------------------------------------
+    
     procedure send_i2c_addr is
     begin
       frame_state <= I2C_ADDR;
@@ -333,9 +334,9 @@ begin
       pulse(master_tx_start_p);
       wait until master_tx_ready = '1';
     end procedure;
-    ----------------------------------------------------------------------------
     
     ----------------------------------------------------------------------------
+    
     procedure send_header (
       signal opcode_in  : in std_logic_vector;
       signal fid_in     : in std_logic;
@@ -359,9 +360,9 @@ begin
       frame_byte_count <= 0;
       frame_state <= WAITING;
     end procedure;
-    ----------------------------------------------------------------------------
     
     ----------------------------------------------------------------------------
+    
     procedure receive_header (
       signal opcode_out   : out std_logic_vector;
       signal fid_out      : out std_logic;
@@ -379,7 +380,6 @@ begin
         if (frame_byte_count = 0) then
           fid_out <= master_rx_data(7);
           opcode_out <= master_rx_data(6 downto 0);
-          -- TODO: Wait one clock cycle and check FID + OPCODE byte?
         else
           dl_int := dl_int(23 downto 0) & master_rx_data;
         end if;
@@ -390,9 +390,10 @@ begin
       frame_byte_count <= 0;
       frame_state <= WAITING;
     end procedure;
-    ----------------------------------------------------------------------------
+    
     
     ----------------------------------------------------------------------------
+    
     procedure send_data (
       signal fid_in                 : in  std_logic;
       signal frame_data_bytes_in    : in  natural
@@ -417,18 +418,67 @@ begin
       frame_state <= WAITING;
       frame_byte_count <= 0;
     end procedure;
-    ----------------------------------------------------------------------------
     
     ----------------------------------------------------------------------------
+    
     procedure end_transaction is
     begin
       trans_state <= IDLE;
       data_buf_addr <= 0;
     end procedure;
-    ----------------------------------------------------------------------------
     
     ----------------------------------------------------------------------------
-    -- Procedure to send a transaction
+    -- Procedures for sending frames
+    ----------------------------------------------------------------------------
+    
+    procedure send_trans_header is
+    begin
+      trans_state <= TRANS_HEADER;
+      fid <= not fid;
+      tid <= not fid;
+      send_i2c_addr;
+      send_header(opcode, fid, dl);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+
+    
+    ----------------------------------------------------------------------------
+
+    procedure receive_f_ack is
+    begin
+      trans_state <= RX_F_ACK;
+      send_i2c_addr;
+      receive_header(opcode, rx_fid, dl);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+
+    ----------------------------------------------------------------------------
+    
+    procedure send_data_frame is
+    begin
+      trans_state <= TX_DATA_FRAME;
+      fid <= not fid;
+      send_i2c_addr;
+      send_data(fid, frame_data_bytes);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+    
+    ----------------------------------------------------------------------------
+
+    procedure receive_t_ack is
+    begin
+      trans_state <= RX_T_ACK;
+      send_i2c_addr;
+      receive_header(opcode, rx_fid, dl);
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+
+    ----------------------------------------------------------------------------
+    -- Procedure for running transactions
     ----------------------------------------------------------------------------
     procedure run_transaction (
       cmd_in : in  std_logic_vector
@@ -440,38 +490,11 @@ begin
       trans_data_bytes <= 1;
       
       wait for c_inter_frame_delay;
-      
-      -- Send transaction header
-      trans_state <= TRANS_HEADER;
-      fid <= not fid;
-      tid <= not fid;
-      send_i2c_addr;
-      send_header(opcode, fid, dl);
-      pulse(frame_end_p);
-      wait for c_inter_frame_delay;
-      
-      -- Receive F_ACK
-      trans_state <= RX_F_ACK;
-      send_i2c_addr;
-      receive_header(opcode, rx_fid, dl);
-      pulse(frame_end_p);
-      wait for c_inter_frame_delay;
-      
-      -- Send DATA_FRAME
-      trans_state <= TX_DATA_FRAME;
-      fid <= not fid;
-      send_i2c_addr;
-      send_data(fid, frame_data_bytes);
-      pulse(frame_end_p);
-      wait for c_inter_frame_delay;
-      
-      -- Receive T_ACK
-      trans_state <= RX_T_ACK;
-      send_i2c_addr;
-      receive_header(opcode, rx_fid, dl);
-      pulse(frame_end_p);
-      wait for c_inter_frame_delay;
-      
+
+      send_trans_header;
+      receive_f_ack;
+      send_data_frame;
+      receive_t_ack;
       end_transaction;
     end procedure;
   
