@@ -247,8 +247,6 @@ architecture arch of testbench is
   --============================================================================
   alias dut_plls_locked
     is <<signal .testbench.cmp_dut.plls_locked : std_logic>>;
-  alias dut_plls_unlocked_p
-    is <<signal .testbench.cmp_dut.plls_unlocked_p : std_logic>>;
 
 --==============================================================================
 --  architecture begin
@@ -503,13 +501,16 @@ begin
     frame_data_bytes <= 0;
     frame_end_p <= '0';
     
-    dut_plls_unlocked_p <= '0';
-    
     wait until rst_n = '1';
     
     wait until dut_plls_locked = '1';
     
-    pulse(dut_plls_unlocked_p);
+    wait for c_inter_frame_delay;
+    
+    wait until rising_edge(clk_50meg);
+    dut_plls_locked <= force '0';
+    wait until rising_edge(clk_50meg);
+    dut_plls_locked <= release;
     
     wait until dut_plls_locked = '1';
     
