@@ -254,7 +254,7 @@ begin
   --============================================================================
   rst_ext <= btn(0);
   
-  p_reset : process (clk_50meg_i, rst_ext) is
+  p_reset : process (clk_50meg_i, rst_ext, plls_unlocked_p) is
   begin
     if (rst_ext = '1') or (plls_unlocked_p = '1') then
       rst <= '1';
@@ -286,12 +286,9 @@ begin
       main_pll_locked_o => plls_locked
     );
     
-  p_plls_unlocked : process (clk_50meg_i, rst) is
+  p_plls_unlocked : process (clk_50meg_i) is
   begin
-    if (rst = '1') then
-      plls_locked_d0 <= '0';
-      plls_unlocked_p <= '0';
-    elsif rising_edge(clk_50meg_i) then
+    if rising_edge(clk_50meg_i) then
       plls_locked_d0 <= plls_locked;
       plls_unlocked_p <= plls_locked_d0 and (not plls_locked);
     end if;
