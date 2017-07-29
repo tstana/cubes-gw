@@ -310,7 +310,7 @@ begin
     );
     
   --============================================================================
-  -- Stimuli and monitor processes
+  -- Stimuli process
   --============================================================================
   p_stim : process is
     
@@ -451,6 +451,20 @@ begin
       send_i2c_addr;
       receive_header(opcode, rx_fid, dl);
       pulse(frame_end_p);
+      
+      -- Stop transaction early on error
+      if (rx_fid /= fid) or (opcode /= c_msp_op_f_ack) then
+        ERROR <= '1';
+        if (rx_fid /= fid) then
+          report "Received FID does not match current master FID!" severity Warning;
+        end if;
+        if (opcode /= c_msp_op_f_ack) then
+          report "Received OPCODE is not F_ACK!" severity Warning;
+        end if;
+        
+        wait;
+      end if;
+      
       wait for c_inter_frame_delay;
     end procedure;
 
@@ -474,6 +488,20 @@ begin
       send_i2c_addr;
       receive_header(opcode, rx_fid, dl);
       pulse(frame_end_p);
+      
+      -- Stop transaction early on error
+      if (rx_fid /= tid) or (opcode /= c_msp_op_t_ack) then
+        ERROR <= '1';
+        if (rx_fid /= tid) then
+          report "Received FID does not match current master TID!" severity Warning;
+        end if;
+        if (opcode /= c_msp_op_t_ack) then
+          report "Received OPCODE is not T_ACK!" severity Warning;
+        end if;
+        
+        wait;
+      end if;
+      
       wait for c_inter_frame_delay;
     end procedure;
 
@@ -526,6 +554,8 @@ begin
     frame_data_bytes <= 0;
     frame_end_p <= '0';
     
+    ERROR <= '0';
+    
     wait until rst_n = '1';
     
     wait until dut_plls_locked = '1';
@@ -550,35 +580,6 @@ begin
     
   end process p_stim;
   
-  ------------------------------------------------------------------------------
-  
-  p_monitor : process is
-  begin
-    ERROR <= '0';
-    wait until rst_n = '1';
-    
-    while true loop
-      wait until frame_end_p = '1';
-      
-      case trans_state is
-        when TRANS_HEADER =>
-          null;
-        when RX_F_ACK =>
-          if (rx_fid /= fid) or (opcode /= c_msp_op_f_ack) then
-            ERROR <= '1';
-          end if;
-        when RX_T_ACK =>
-          if (rx_fid /= tid) or (opcode /= c_msp_op_t_ack) then
-            ERROR <= '1';
-          end if;
-        when others =>
-          null;
-      end case;
-    end loop;
-    
-    wait;
-  end process p_monitor;
-    
   --============================================================================
   -- DUT
   --============================================================================
