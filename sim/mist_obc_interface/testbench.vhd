@@ -563,16 +563,7 @@ begin
     generic map
     (
       g_nr_buttons      => 1,
-      
-      -- Internal period in 50 MHz clock ticks; this is in addition to the period
-      -- of any external reset the user employs:
-      --
-      -- reset_time = (20 ns * g_reset_period) + <external_reset_period>
       g_reset_period    => c_reset_per,
-      
-      -- UART baud divider ratio:
-      --    g_baud_div = [f(clk_i) / f(baud)]-1
-      --    Default: 115200 bps with 100 MHz clk_i
       g_baud_div        => 2*c_baud_div_int + 1
     )
     port map
