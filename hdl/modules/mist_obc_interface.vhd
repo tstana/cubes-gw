@@ -84,12 +84,16 @@ entity mist_obc_interface is
     wdto_p_o    : out std_logic;
     
     -- Peripheral module signals
-    periph_sel_o        : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
-    periph_buf_data_i   : in  std_logic_vector(7 downto 0);
-    periph_buf_data_o   : out std_logic_vector(7 downto 0);
-    periph_buf_addr_i   : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
-    periph_buf_we_p_i   : in  std_logic;
-    periph_data_rdy_p_o : out std_logic;
+    periph_sel_o              : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
+    
+    periph_num_data_bytes_i   : in  std_logic_vector(c_msp_dl_width-1 downto 0);
+    periph_buf_we_i           : in  std_logic;
+    periph_buf_addr_i         : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
+    periph_buf_data_i         : in  std_logic_vector(7 downto 0);
+    periph_data_rdy_p_i       : in  std_logic;
+    
+    periph_buf_data_o         : out std_logic_vector(7 downto 0);
+    periph_data_rdy_p_o       : out std_logic;
 
     -- TEMPORARY: UART RX and TX
     rxd_i       : in  std_logic;
@@ -572,7 +576,7 @@ begin
       
       -- Port B
       clkb_i => '0',
-      web_i  => periph_buf_we_p_i,
+      web_i  => periph_buf_we_i,
       ab_i   => periph_buf_addr_i,
       db_i   => periph_buf_data_i,
       qb_o   => periph_buf_data_o

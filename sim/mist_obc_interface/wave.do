@@ -30,11 +30,27 @@ add wave -noupdate /testbench/cmp_dut/rst
 add wave -noupdate /testbench/cmp_dut/rst_n
 add wave -noupdate /testbench/cmp_dut/clk_100meg
 add wave -noupdate -radix hexadecimal /testbench/led
-add wave -noupdate -divider DUT/OBC-intf
+add wave -noupdate /testbench/cmp_dut/obc_periph_sel
+add wave -noupdate /testbench/cmp_dut/obc_periph_en
+add wave -noupdate -radix unsigned /testbench/cmp_dut/obc_num_bytes_in
+add wave -noupdate /testbench/cmp_dut/obc_buf_we_in
+add wave -noupdate -radix hexadecimal /testbench/cmp_dut/obc_buf_addr_in
+add wave -noupdate -radix hexadecimal /testbench/cmp_dut/obc_buf_data_in
+add wave -noupdate /testbench/cmp_dut/obc_buf_data_in_rdy_p
+add wave -noupdate /testbench/cmp_dut/obc_buf_data_out
+add wave -noupdate /testbench/cmp_dut/obc_buf_data_out_rdy_p
+add wave -noupdate -divider DUT/mist_obc_interface
 add wave -noupdate /testbench/cmp_dut/cmp_obc_interface/frame_state
 add wave -noupdate /testbench/cmp_dut/cmp_obc_interface/trans_state
+add wave -noupdate -divider DUT/hk_regs
+add wave -noupdate /testbench/cmp_dut/cmp_hk_regs/en_i
+add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_hk_regs/num_bytes_o
+add wave -noupdate /testbench/cmp_dut/cmp_hk_regs/we_o
+add wave -noupdate -radix hexadecimal /testbench/cmp_dut/cmp_hk_regs/addr_o
+add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_hk_regs/data_o
+add wave -noupdate /testbench/cmp_dut/cmp_hk_regs/data_rdy_p_o
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {228021 ps} 0}
+WaveRestoreCursors {{Cursor 1} {320000 ps} 0}
 quietly wave cursor active 1
 configure wave -namecolwidth 413
 configure wave -valuecolwidth 100
@@ -50,4 +66,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits us
 update
-WaveRestoreZoom {0 ps} {4200 ns}
+WaveRestoreZoom {0 ps} {15750016 ps}
