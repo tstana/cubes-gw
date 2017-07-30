@@ -376,7 +376,7 @@ begin
       
       while (frame_byte_count < c_msp_dl_num_bytes) loop
         wait until master_rx_ready = '1';
-        frame_byte_count <= frame_byte_count + 1;
+          frame_byte_count <= frame_byte_count + 1;
         if (frame_byte_count = 0) then
           fid_out <= master_rx_data(7);
           opcode_out <= master_rx_data(6 downto 0);
@@ -418,15 +418,17 @@ begin
       frame_state <= WAITING;
       frame_byte_count <= 0;
     end procedure;
-    
+
     ----------------------------------------------------------------------------
     
-    procedure end_transaction is
+    procedure receive_data is
     begin
-      trans_state <= IDLE;
-      data_buf_addr <= 0;
+      frame_state <= RX_DATA_BYTES;
+
+      frame_state <= WAITING;
+      frame_byte_count <= 0;
     end procedure;
-    
+
     ----------------------------------------------------------------------------
     -- Procedures for sending frames
     ----------------------------------------------------------------------------
@@ -441,10 +443,25 @@ begin
       pulse(frame_end_p);
       wait for c_inter_frame_delay;
     end procedure;
-
     
     ----------------------------------------------------------------------------
 
+    procedure receive_exp_send is
+    begin
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+    
+    ----------------------------------------------------------------------------
+
+    procedure send_f_ack is
+    begin
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+    
+    ----------------------------------------------------------------------------
+    
     procedure receive_f_ack is
     begin
       trans_state <= RX_F_ACK;
@@ -481,6 +498,26 @@ begin
     end procedure;
     
     ----------------------------------------------------------------------------
+    
+    procedure receive_data_frame is
+    begin
+      trans_state <= RX_DATA_FRAME;
+      fid <= rx_fid;
+      send_i2c_addr;
+      receive_data;
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+    
+    ----------------------------------------------------------------------------
+
+    procedure send_t_ack is
+    begin
+      pulse(frame_end_p);
+      wait for c_inter_frame_delay;
+    end procedure;
+    
+    ----------------------------------------------------------------------------
 
     procedure receive_t_ack is
     begin
@@ -505,6 +542,15 @@ begin
       wait for c_inter_frame_delay;
     end procedure;
 
+    
+    ----------------------------------------------------------------------------
+    
+    procedure end_transaction is
+    begin
+      trans_state <= IDLE;
+      data_buf_addr <= 0;
+    end procedure;
+    
     ----------------------------------------------------------------------------
     -- Procedure for running transactions
     ----------------------------------------------------------------------------
@@ -512,18 +558,33 @@ begin
       cmd_in : in  std_logic_vector
     ) is
     begin
-      opcode <= cmd_in;
-      dl <= x"00000001";
-      frame_data_bytes <= 1;
-      trans_data_bytes <= 1;
-      
       wait for c_inter_frame_delay;
+      opcode <= cmd_in;
 
-      send_trans_header;
-      receive_f_ack;
-      send_data_frame;
-      receive_t_ack;
-      end_transaction;
+      case cmd_in is
+        when c_msp_op_set_leds =>
+          frame_data_bytes <= 1;
+          trans_data_bytes <= 1;
+          dl <= std_logic_vector(to_unsigned(1, dl'length));
+          send_trans_header;
+          receive_f_ack;
+          send_data_frame;
+          receive_t_ack;
+          end_transaction;
+        when c_msp_op_req_hk =>
+          frame_data_bytes <= 3;
+          trans_data_bytes <= 3;
+          dl <= std_logic_vector(to_unsigned(1, dl'length));
+          send_trans_header;
+          receive_exp_send;
+          send_f_ack;
+          receive_data_frame;
+          send_t_ack;
+          end_transaction;
+        when others =>
+          null;
+      end case;
+      
     end procedure;
   
   ------------------------------------------------------------------------------
