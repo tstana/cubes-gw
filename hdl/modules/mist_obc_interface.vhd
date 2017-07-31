@@ -90,6 +90,7 @@ entity mist_obc_interface is
     periph_buf_we_i           : in  std_logic;
     periph_buf_addr_i         : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
     periph_buf_data_i         : in  std_logic_vector(7 downto 0);
+    periph_data_ld_p_o        : out std_logic;
     periph_data_rdy_p_i       : in  std_logic;
     
     periph_buf_data_o         : out std_logic_vector(7 downto 0);
@@ -111,6 +112,8 @@ architecture behav of mist_obc_interface is
     IDLE,
     
     TRANS_HEADER,
+    
+    EXP_SEND,
 
     RX_F_ACK,
     RX_T_ACK,
@@ -124,7 +127,7 @@ architecture behav of mist_obc_interface is
     TX_DATA_FRAME,
     RX_DATA_FRAME,
 
-    APPLY_DATA_FRAME
+    APPLY_RX_DATA
   );
   
   type t_frame_state is (
@@ -133,6 +136,7 @@ architecture behav of mist_obc_interface is
     RX_HEADER_BYTES,
     TX_HEADER_BYTES,
 
+    PULSE_TX_START,     -- TEMPORARY!!!
     RX_DATA_BYTES,
     TX_DATA_BYTES
   );
@@ -278,6 +282,7 @@ begin
       obc_send_trans <= '0';
       periph_sel_o <= (others => '0');
       periph_data_rdy_p_o <= '0';
+      periph_data_ld_p_o <= '0';
       tid <= '0';
       
     elsif rising_edge(clk_i) then
@@ -285,12 +290,12 @@ begin
       trans_done_p <= '0';
       
       periph_data_rdy_p_o <= '0';
+      periph_data_ld_p_o <= '0';
       
       case trans_state is
         when IDLE =>
           obc_send_trans <= '0';
           if (i2c_addr_match_p = '1') then
-            periph_sel_o <= (others => '0');
             trans_state <= TRANS_HEADER;
           end if;
           
@@ -298,6 +303,11 @@ begin
           if (frame_rxed_p = '1') then
             tid <= fid;
             case rx_opcode is
+              when c_msp_op_req_hk =>
+                obc_send_trans <= '0';
+                periph_sel_o <= "0";
+                trans_state <= EXP_SEND;
+                periph_data_ld_p_o <= '1';
               when c_msp_op_set_leds =>
                 obc_send_trans <= '1';
                 periph_sel_o <= "1";
@@ -305,6 +315,11 @@ begin
               when others =>
                 trans_state <= TX_T_ACK;
             end case;
+          end if;
+          
+        when EXP_SEND =>
+          if (frame_txed_p = '1') then
+            trans_state <= RX_F_ACK;
           end if;
           
         when RX_F_ACK =>
@@ -385,6 +400,8 @@ begin
       rx_opcode <= (others => '0');
       rx_data_len <= (others => '0');
       
+      tx_data_len <= (others => '0');
+      
       buf_data_in <= (others => '0');
       buf_addr <= (others => '0');
       buf_we_p <= '0';
@@ -417,6 +434,12 @@ begin
             case trans_state is
               when IDLE =>
                 frame_state <= RX_HEADER_BYTES;
+              when EXP_SEND =>
+                frame_state <= TX_HEADER_BYTES;
+                tx_data_len <= periph_num_data_bytes_i;
+                trans_data_bytes <= unsigned(periph_num_data_bytes_i);
+                i2c_tx_byte <= fid & c_msp_op_exp_send;
+                tx_start_p <= '1';
               when RX_F_ACK =>
                 frame_state <= RX_HEADER_BYTES;
               when TX_F_ACK =>
@@ -424,6 +447,8 @@ begin
                 tx_data_len <= (others => '0');
                 i2c_tx_byte <= fid & c_msp_op_f_ack;
                 tx_start_p <= '1';
+              when RX_T_ACK =>
+                frame_state <= RX_HEADER_BYTES;
               when TX_T_ACK =>
                 frame_state <= TX_HEADER_BYTES;
                 tx_data_len <= (others => '0');
@@ -436,6 +461,15 @@ begin
                   frame_data_bytes <= trans_data_bytes;
                 end if;
                 frame_state <= RX_DATA_BYTES;
+              when TX_DATA_FRAME =>
+                if (trans_data_bytes >= c_msp_mtu) then
+                  frame_data_bytes <= to_unsigned(c_msp_mtu, frame_data_bytes'length);
+                else
+                  frame_data_bytes <= trans_data_bytes;
+                end if;
+                i2c_tx_byte <= fid & c_msp_op_data_frame;
+                tx_start_p <= '1';
+                frame_state <= PULSE_TX_START;
               when others =>
                 null;
             end case;
@@ -459,9 +493,11 @@ begin
           -- done shifting; apply received fields, signal transaction FSM and
           -- go back to waiting
           else
-            trans_data_bytes <= unsigned(rx_data_len);
             -- TODO: Check here for correct FID and signal error otherwise.
-            fid <= rx_fid;
+            if (trans_state = TRANS_HEADER) then
+              trans_data_bytes <= unsigned(rx_data_len);
+              fid <= rx_fid;
+            end if;
 
             frame_rxed_p <= '1';
             
@@ -494,10 +530,6 @@ begin
             
           -- done shifting; signal transaction FSM and go back to waiting
           else
-            -- trans_data_bytes <= unsigned(tx_data_len);
-            
-            -- TODO: Check here for correct FID and signal error otherwise.
-            
             -- FID only controlled by CUBES if this is an OBC Request
             -- transaction; otherwise, the OBC sets the FID field.
             if (obc_send_trans = '0') then
@@ -536,6 +568,47 @@ begin
             fid <= rx_fid;
             
             frame_rxed_p <= '1';
+            ------------------------
+            -- TODO: Remove for I2C
+            ------------------------
+            uart_wrapper_stop_p <= '1';
+            ------------------------
+            frame_state <= WAIT_I2C_ADDR;
+          end if;
+
+        when PULSE_TX_START =>
+          tx_start_p <= '0';
+          frame_state <= TX_DATA_BYTES;
+          
+        when TX_DATA_BYTES =>
+          if (frame_byte_count < 1 + frame_data_bytes) then
+            if (i2c_w_done_p = '1') then
+              frame_byte_count <= frame_byte_count + 1;
+              
+              -- FID+OPCODE byte
+              if (frame_byte_count = 0) then
+                rx_fid <= i2c_rx_byte(7);
+                rx_opcode <= i2c_rx_byte(6 downto 0);
+              -- DATA bytes
+              else
+                buf_data_in <= i2c_rx_byte;
+                buf_we_p <= '1';
+                trans_data_bytes <= trans_data_bytes - 1;
+              -- FCS bytes here
+              end if;
+              
+              ------------------------
+              -- TODO: Remove for I2C
+              ------------------------
+              tx_start_p <= '1';
+              frame_state <= PULSE_TX_START;
+              ------------------------
+            end if;
+          else
+            -- TODO: Check here for correct FID and signal error otherwise.
+            fid <= not fid;
+            
+            frame_txed_p <= '1';
             ------------------------
             -- TODO: Remove for I2C
             ------------------------

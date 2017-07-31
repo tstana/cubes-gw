@@ -42,8 +42,6 @@ architecture behav of hk_regs is
   signal addr       : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
   signal data       : std_logic_vector( 7 downto 0);
   
-  signal gw_vers    : std_logic_vector(15 downto 0);
-  
 begin
 
   p_send_data : process (clk_i, rst_n_a_i) is
@@ -52,7 +50,6 @@ begin
       state <= IDLE;
       addr <= (others => '0');
       data <= (others => '0');
-      gw_vers <= (others => '0');
       we_o <= '0';
       data_rdy_p_o <= '0';
     elsif rising_edge(clk_i) then
@@ -63,16 +60,17 @@ begin
           we_o <= '0';
           if (data_ld_p_i = '1') then
             state <= SEND_DATA;
-            data <= gw_vers(15 downto 8);
+            data <= gw_vers_i(15 downto 8);
             we_o <= '1';
           end if;
         when SEND_DATA =>
           addr <= addr + 1;
           if (addr = 0) then
-            data <= gw_vers(7 downto 0);
+            data <= gw_vers_i(7 downto 0);
           elsif (addr = 1) then
             data <= leds_i;
           else
+            data_rdy_p_o <= '1';
             we_o <= '0';
             state <= IDLE;
           end if;

@@ -21,5 +21,5 @@ vsim -t 1ps -voptargs="+acc" -lib work work.testbench
 
 do wave.do
 
-run 60 us
+run 120 us
 wave zoomfull

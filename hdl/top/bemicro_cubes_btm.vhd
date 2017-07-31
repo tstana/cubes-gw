@@ -189,6 +189,7 @@ architecture arch of bemicro_cubes_btm is
       periph_buf_we_i           : in  std_logic;
       periph_buf_addr_i         : in  std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
       periph_buf_data_i         : in  std_logic_vector(7 downto 0);
+      periph_data_ld_p_o        : out std_logic;
       periph_data_rdy_p_i       : in  std_logic;
       
       periph_buf_data_o         : out std_logic_vector(7 downto 0);
@@ -253,6 +254,7 @@ architecture arch of bemicro_cubes_btm is
   signal obc_buf_data_in        : std_logic_vector(7 downto 0);
   signal obc_buf_data_in_rdy_p  : std_logic;
   signal obc_buf_data_out       : std_logic_vector(7 downto 0);
+  signal obc_buf_data_ld_p      : std_logic;
   signal obc_buf_data_out_rdy_p : std_logic;
   
   -- Temporary SPI signals
@@ -375,6 +377,7 @@ end generate gen_obc_en;
       periph_buf_we_i           => obc_buf_we_in,
       periph_buf_addr_i         => obc_buf_addr_in,
       periph_buf_data_i         => obc_buf_data_in,
+      periph_data_ld_p_o        => obc_buf_data_ld_p,
       periph_data_rdy_p_i       => obc_buf_data_in_rdy_p,
       
       periph_buf_data_o         => obc_buf_data_out,
@@ -398,7 +401,7 @@ end generate gen_obc_en;
       num_bytes_o         => obc_num_bytes_in,
       
       -- Interface to MSP data buffer
-      data_ld_p_i         => '0',
+      data_ld_p_i         => obc_buf_data_ld_p,
       we_o                => obc_buf_we_in,
       addr_o              => obc_buf_addr_in,
       data_o              => obc_buf_data_in,

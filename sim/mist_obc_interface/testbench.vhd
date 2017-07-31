@@ -107,7 +107,7 @@ architecture arch of testbench is
   constant c_reset_per         : natural := 5; -- * c_clk_per
   
   -- UART baud divider
-  constant c_baud_div_int         : natural := 5;
+  constant c_baud_div_int         : natural := 9;
   constant c_baud_div             : std_logic_vector :=
       std_logic_vector(to_unsigned(c_baud_div_int, f_log2_size(c_baud_div_int)));
       
@@ -376,7 +376,7 @@ begin
       
       while (frame_byte_count < c_msp_dl_num_bytes) loop
         wait until master_rx_ready = '1';
-          frame_byte_count <= frame_byte_count + 1;
+        frame_byte_count <= frame_byte_count + 1;
         if (frame_byte_count = 0) then
           fid_out <= master_rx_data(7);
           opcode_out <= master_rx_data(6 downto 0);
@@ -421,12 +421,28 @@ begin
 
     ----------------------------------------------------------------------------
     
-    procedure receive_data is
+    procedure receive_data (
+      signal fid_out     : out std_logic;
+      signal opcode_out  : out std_logic_vector
+    ) is
     begin
       frame_state <= RX_DATA_BYTES;
-
-      frame_state <= WAITING;
+      
+      while (frame_byte_count < frame_data_bytes) loop
+        wait until master_rx_ready = '1';
+        frame_byte_count <= frame_byte_count + 1;
+        if (frame_byte_count = 0) then
+          fid_out <= master_rx_data(7);
+          opcode_out <= master_rx_data(6 downto 0);
+        else
+          data_buf(data_buf_addr) <= master_rx_data;
+          data_buf_addr <= data_buf_addr + 1;
+          trans_data_bytes <= trans_data_bytes - 1;
+        end if;
+      end loop;
+      
       frame_byte_count <= 0;
+      frame_state <= WAITING;
     end procedure;
 
     ----------------------------------------------------------------------------
@@ -436,8 +452,11 @@ begin
     procedure send_trans_header is
     begin
       trans_state <= TRANS_HEADER;
-      fid <= not fid;
-      tid <= not fid;
+      fid <= '0';
+      if (opcode = c_msp_op_set_leds) then
+          fid <= not fid;
+          tid <= not fid;
+      end if;
       send_i2c_addr;
       send_header(opcode, fid, dl);
       pulse(frame_end_p);
@@ -448,7 +467,29 @@ begin
 
     procedure receive_exp_send is
     begin
+      trans_state <= RX_HEADER_FRAME;
+      send_i2c_addr;
+      receive_header(opcode, rx_fid, dl);
       pulse(frame_end_p);
+
+      -- Stop transaction early on error
+      if (opcode /= c_msp_op_exp_send) then
+        ERROR <= '1';
+        report "Received OPCODE is not EXP_SEND!" severity Warning;
+        
+        wait;
+      end if;
+      
+      -- Apply received data length for next transactions
+      trans_data_bytes <= to_integer(unsigned(dl));
+      fid <= rx_fid;
+      tid <= rx_fid;
+      if (to_integer(unsigned(dl)) > c_msp_mtu) then
+        frame_data_bytes <= c_msp_mtu;
+      else
+        frame_data_bytes <= to_integer(unsigned(dl));
+      end if;
+
       wait for c_inter_frame_delay;
     end procedure;
     
@@ -456,6 +497,11 @@ begin
 
     procedure send_f_ack is
     begin
+      trans_state <= TX_F_ACK;
+      opcode <= c_msp_op_f_ack;
+      dl <= (others => '0');
+      send_i2c_addr;
+      send_header(opcode, fid, dl);
       pulse(frame_end_p);
       wait for c_inter_frame_delay;
     end procedure;
@@ -502,10 +548,23 @@ begin
     procedure receive_data_frame is
     begin
       trans_state <= RX_DATA_FRAME;
-      fid <= rx_fid;
       send_i2c_addr;
-      receive_data;
+      receive_data(rx_fid, opcode);
       pulse(frame_end_p);
+      
+      -- Stop transaction early on error
+      if (rx_fid = fid) or (opcode /= c_msp_op_data_frame) then
+        ERROR <= '1';
+        if (rx_fid = fid) then
+          report "Received FID is not negation of previous!" severity Warning;
+        end if;
+        if (opcode /= c_msp_op_data_frame) then
+          report "Received OPCODE is not DATA_FRAME!" severity Warning;
+        end if;
+        wait;
+      end if;
+      
+      fid <= rx_fid;
       wait for c_inter_frame_delay;
     end procedure;
     
@@ -513,6 +572,11 @@ begin
 
     procedure send_t_ack is
     begin
+      trans_state <= TX_T_ACK;
+      opcode <= c_msp_op_t_ack;
+      dl <= (others => '0');
+      send_i2c_addr;
+      send_header(opcode, tid, dl);
       pulse(frame_end_p);
       wait for c_inter_frame_delay;
     end procedure;
@@ -558,8 +622,8 @@ begin
       cmd_in : in  std_logic_vector
     ) is
     begin
-      wait for c_inter_frame_delay;
       opcode <= cmd_in;
+      wait for c_inter_frame_delay;
 
       case cmd_in is
         when c_msp_op_set_leds =>
@@ -572,9 +636,7 @@ begin
           receive_t_ack;
           end_transaction;
         when c_msp_op_req_hk =>
-          frame_data_bytes <= 3;
-          trans_data_bytes <= 3;
-          dl <= std_logic_vector(to_unsigned(1, dl'length));
+          dl <= std_logic_vector(to_unsigned(0, dl'length));
           send_trans_header;
           receive_exp_send;
           send_f_ack;
@@ -628,11 +690,13 @@ begin
     ----------------------------------------------------------------------------
     -- Transactions
     ----------------------------------------------------------------------------
-    data_buf(0) <= x"ff";
-    run_transaction(c_msp_op_set_leds);
-
+--    data_buf(0) <= x"ff";
+--    run_transaction(c_msp_op_set_leds);
+--
     data_buf(0) <= x"12";
     run_transaction(c_msp_op_set_leds);
+    
+    run_transaction(c_msp_op_req_hk);
 
     ----------------------------------------------------------------------------
     -- End stimuli
