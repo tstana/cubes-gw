@@ -28,21 +28,31 @@ entity hk_regs is
   );
 end entity hk_regs;
 
+
 architecture behav of hk_regs is
 
+  --============================================================================
+  -- Type declarations
+  --============================================================================
   type t_state is (
     IDLE,
     SEND_DATA
   );
   
+  --============================================================================
+  -- Constant declarations
+  --============================================================================
   constant c_num_hk_bytes : natural := 3;
   
+  --============================================================================
+  -- Signal declarations
+  --============================================================================
   signal state      : t_state;
   
   signal addr       : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
   signal data       : std_logic_vector( 7 downto 0);
-  
-begin
+
+begin -- architecture behav
 
   p_send_data : process (clk_i, rst_n_a_i) is
   begin
