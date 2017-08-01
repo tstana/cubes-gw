@@ -10,7 +10,6 @@ add wave -noupdate /testbench/frame_end_p
 add wave -noupdate /testbench/master_tx_ready
 add wave -noupdate -radix hexadecimal /testbench/master_tx_data
 add wave -noupdate -radix hexadecimal /testbench/header_buf
-add wave -noupdate -radix hexadecimal /testbench/data_buf
 add wave -noupdate /testbench/master_tx_start_p
 add wave -noupdate -radix unsigned /testbench/frame_byte_count
 add wave -noupdate -radix unsigned /testbench/frame_data_bytes
@@ -30,25 +29,12 @@ add wave -noupdate /testbench/cmp_dut/rst
 add wave -noupdate /testbench/cmp_dut/rst_n
 add wave -noupdate /testbench/cmp_dut/clk_100meg
 add wave -noupdate -radix hexadecimal /testbench/led
-add wave -noupdate /testbench/cmp_dut/obc_periph_sel
-add wave -noupdate /testbench/cmp_dut/obc_periph_en
-add wave -noupdate -radix unsigned /testbench/cmp_dut/obc_num_bytes_in
-add wave -noupdate /testbench/cmp_dut/obc_buf_we_in
-add wave -noupdate -radix hexadecimal /testbench/cmp_dut/obc_buf_addr_in
-add wave -noupdate -radix hexadecimal /testbench/cmp_dut/obc_buf_data_in
-add wave -noupdate /testbench/cmp_dut/obc_buf_data_in_rdy_p
-add wave -noupdate /testbench/cmp_dut/obc_buf_data_out
-add wave -noupdate /testbench/cmp_dut/obc_buf_data_out_rdy_p
 add wave -noupdate -divider DUT/mist_obc_interface
 add wave -noupdate /testbench/cmp_dut/cmp_obc_interface/frame_state
 add wave -noupdate /testbench/cmp_dut/cmp_obc_interface/trans_state
-add wave -noupdate -divider DUT/hk_regs
-add wave -noupdate /testbench/cmp_dut/cmp_hk_regs/en_i
-add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_hk_regs/num_bytes_o
-add wave -noupdate /testbench/cmp_dut/cmp_hk_regs/we_o
-add wave -noupdate -radix hexadecimal /testbench/cmp_dut/cmp_hk_regs/addr_o
-add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_hk_regs/data_o
-add wave -noupdate /testbench/cmp_dut/cmp_hk_regs/data_rdy_p_o
+add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_obc_interface/frame_byte_count
+add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_obc_interface/frame_data_bytes
+add wave -noupdate -radix unsigned /testbench/cmp_dut/cmp_obc_interface/trans_data_bytes
 TreeUpdate [SetDefaultTree]
 WaveRestoreCursors {{Cursor 1} {320000 ps} 0}
 quietly wave cursor active 1
