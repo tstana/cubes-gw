@@ -32,21 +32,20 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.gencores_pkg.all;
-use work.siphra_pkg.all;
 
 
 entity siphra_ctrl is
   port
   (
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- Clock, active-low async. reset
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     clk_i             : in  std_logic;
     rst_n_a_i         : in  std_logic;
     
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- SIPHRA register ports
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- Start register operation
     reg_op_start_p_i  : in  std_logic;
 
@@ -61,14 +60,14 @@ entity siphra_ctrl is
     -- Register operation done
     reg_op_ready_o    : out std_logic;
     
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- SIPHRA SYSCLK port
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     sysclk_o          : out std_logic;
     
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- SIPHRA ADC readout ports
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     txd_i             : in  std_logic;
     adc_value_o       : out std_logic_vector(11 downto 0);
     adc_chan_o        : out std_logic_vector( 4 downto 0);
@@ -76,9 +75,9 @@ entity siphra_ctrl is
     adc_trig_type_o   : out std_logic_vector( 1 downto 0);
     adc_valid_o       : out std_logic;
     
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     -- SPI ports
-    ---------------------------------------------------------------------------
+    ----------------------------------------------------------------------------
     spi_cs_n_o        : out std_logic;
     spi_sclk_o        : out std_logic;
     spi_mosi_o        : out std_logic;
@@ -152,10 +151,10 @@ architecture behav of siphra_ctrl is
   signal spi_ready        : std_logic;
   signal reg_op_ready     : std_logic;
   
+  signal sysclk_div       : unsigned(3 downto 0);
   signal sysclk           : std_logic;
-  signal sysclk_count     : unsigned(3 downto 0);
   signal sysclk_d0        : std_logic;
-  signal sysclk_fedge_p   : std_logic;
+  signal sysclk_fall_p    : std_logic;
   
   signal adc_sreg         : std_logic_vector(19 downto 0);
   signal adc_sreg_en      : std_logic;
@@ -256,18 +255,18 @@ begin
     );
 
   --============================================================================
-  -- SYSCLk generation
+  -- SYSCLK generation
   --============================================================================
   p_sysclk : process (clk_i, rst_n_a_i)
   begin
     if (rst_n_a_i = '0') then
       sysclk <= '0';
-      sysclk_count <= (others => '0');
+      sysclk_div <= (others => '0');
     elsif rising_edge(clk_i) then
-      sysclk_count <= sysclk_count + 1;
-      if (sysclk_count = 9) then
+      sysclk_div <= sysclk_div + 1;
+      if (sysclk_div = 9) then
         sysclk <= not sysclk;
-        sysclk_count <= (others => '0');
+        sysclk_div <= (others => '0');
       end if;
     end if;
   end process p_sysclk;
@@ -281,10 +280,10 @@ begin
   begin
     if (rst_n_a_i = '0') then
       sysclk_d0 <= '0';
-      sysclk_fedge_p <= '0';
+      sysclk_fall_p <= '0';
     elsif rising_edge(clk_i) then
       sysclk_d0 <= sysclk;
-      sysclk_fedge_p <= sysclk_d0 and (not sysclk);
+      sysclk_fall_p <= sysclk_d0 and (not sysclk);
     end if;
   end process p_sysclk_fedge;
       
@@ -295,7 +294,7 @@ begin
       adc_sreg_en <= '0';
       adc_bit_count <= (others => '0');
     elsif rising_edge(clk_i) then
-      if (sysclk_fedge_p = '1') then
+      if (sysclk_fall_p = '1') then
         if (adc_sreg_en = '0') then
           if (txd_i = '1') then
             adc_sreg_en <= '1';
