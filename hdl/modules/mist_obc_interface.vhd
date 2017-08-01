@@ -136,7 +136,6 @@ architecture behav of mist_obc_interface is
     RX_HEADER_BYTES,
     TX_HEADER_BYTES,
 
-    PULSE_TX_START,     -- TEMPORARY!!!
     RX_DATA_BYTES,
     TX_DATA_BYTES
   );
@@ -469,7 +468,7 @@ begin
                 end if;
                 i2c_tx_byte <= fid & c_msp_op_data_frame;
                 tx_start_p <= '1';
-                frame_state <= PULSE_TX_START;
+                frame_state <= TX_DATA_BYTES;
               when others =>
                 null;
             end case;
@@ -575,34 +574,26 @@ begin
             ------------------------
             frame_state <= WAIT_I2C_ADDR;
           end if;
-
-        when PULSE_TX_START =>
-          tx_start_p <= '0';
-          frame_state <= TX_DATA_BYTES;
           
         when TX_DATA_BYTES =>
           if (frame_byte_count < 1 + frame_data_bytes) then
             if (i2c_w_done_p = '1') then
               frame_byte_count <= frame_byte_count + 1;
               
-              -- FID+OPCODE byte
-              if (frame_byte_count = 0) then
-                rx_fid <= i2c_rx_byte(7);
-                rx_opcode <= i2c_rx_byte(6 downto 0);
               -- DATA bytes
-              else
-                buf_data_in <= i2c_rx_byte;
-                buf_we_p <= '1';
+              if (frame_byte_count < frame_data_bytes) then
+                i2c_tx_byte <= buf_data_out;
+                buf_addr <= buf_addr + 1;
                 trans_data_bytes <= trans_data_bytes - 1;
-              -- FCS bytes here
-              end if;
+                ------------------------
+                -- TODO: Remove for I2C
+                ------------------------
+                tx_start_p <= '1';
+                ------------------------
               
-              ------------------------
-              -- TODO: Remove for I2C
-              ------------------------
-              tx_start_p <= '1';
-              frame_state <= PULSE_TX_START;
-              ------------------------
+              -- FCS bytes here
+              -- else
+              end if;
             end if;
           else
             -- TODO: Check here for correct FID and signal error otherwise.
