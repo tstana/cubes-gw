@@ -136,8 +136,9 @@ architecture behav of siphra_obc_periph is
   signal adc_chan             : std_logic_vector( 4 downto 0);
   signal adc_valid            : std_logic;
   
-  signal addr       : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
-  signal data       : std_logic_vector( 7 downto 0);
+  signal num_bytes            : unsigned(c_msp_dl_width-1 downto 0);
+  signal addr                 : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
+  signal data                 : std_logic_vector( 7 downto 0);
 
 begin -- behav
 
@@ -156,7 +157,7 @@ begin -- behav
       reg_val <= (others => '0');
       reg_op_ready_d0 <= '0';
       reg_op_ready_rise_p <= '0';
-      num_bytes_o <= (others => '0');
+      num_bytes <= (others => '0');
     elsif rising_edge(clk_i) then
       -- Default states for pulse signals
       data_rdy_p_o <= '0';
@@ -182,7 +183,7 @@ begin -- behav
             elsif (data_ld_p_i = '1') then
               state <= SEND_DATA;
               if (en_i = "10") and (reg_op_ready = '1') then
-                num_bytes_o <= std_logic_vector(to_unsigned(4, num_bytes_o'length));
+                num_bytes <= to_unsigned(5, num_bytes_o'length);
                 data <= reg_val(31 downto 24);
               else
                 num_bytes_o <= (others => '0');
@@ -191,7 +192,7 @@ begin -- behav
           end if;
         when RECEIVE_DATA =>
           addr <= addr + 1;
-          if (addr < unsigned(num_bytes_i)) then
+          if (addr < num_bytes) then
             -- TODO: Implement RECEIVE_DATA for other commands (?)
             if (addr < 4) then
               reg_data_in <= reg_data_in(23 downto 0) & data_i;
@@ -205,9 +206,9 @@ begin -- behav
           end if;
         when SEND_DATA =>
           addr <= addr + 1;
-          if (addr < 3) then
+          if (addr < num_bytes-1) then
             data <= reg_val(31 downto 24);
-            reg_val <= reg_val(31 downto 8) & x"00";
+            reg_val <= reg_val(23 downto 8) & x"00";
           else
             data_rdy_p_o <=  '1';
             state <= IDLE;
@@ -219,6 +220,7 @@ begin -- behav
   end process p_fsm;
   
   -- Assign data source outputs
+  num_bytes_o <= std_logic_vector(num_bytes);
   data_o <= data;
   addr_o <= std_logic_vector(addr);
   
