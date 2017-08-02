@@ -8,8 +8,6 @@ package msp_pkg is
   --============================================================================
   -- Function declarations
   --============================================================================
-  function to7bits(v : std_logic_vector(7 downto 0)) return std_logic_vector;
-  function to3bits(v : std_logic_vector(3 downto 0)) return std_logic_vector;
   function f_obc_sel(periph : natural) return std_logic_vector;
   
   --============================================================================
@@ -56,11 +54,6 @@ package body msp_pkg is
     return v(6 downto 0);
   end function;
 
-  function to3bits(v : std_logic_vector(3 downto 0)) return std_logic_vector is
-  begin
-    return v(2 downto 0);
-  end function;
-
   --============================================================================
   -- Constant definitions
   --============================================================================
@@ -93,7 +86,7 @@ package body msp_pkg is
   constant c_periph_siphra_reg_op       : natural := 2;
   constant c_periph_siphra_reg_val      : natural := 3;
 
-  -- Shorthand for nasty std_logic_vector(to_unsigned())...
+  -- Shorthand for long call to "std_logic_vector(to_unsigned())"...
   function f_obc_sel(periph : natural) return std_logic_vector is
   begin
     return std_logic_vector(to_unsigned(periph, f_log2_size(c_num_obc_periphs)));
