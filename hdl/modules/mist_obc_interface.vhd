@@ -43,9 +43,6 @@ use work.msp_pkg.all;
 entity mist_obc_interface is
   generic
   (
-    -- Number of peripherals to OBC interface component
-    g_num_periphs : natural;
-
     -- Baud divider ratio:
     --    g_baud_div = [f(clk_i) / f(baud)]-1
     --    Default: 115200 bps with 100 MHz clk_i
@@ -84,7 +81,7 @@ entity mist_obc_interface is
     wdto_p_o    : out std_logic;
     
     -- Peripheral module signals
-    periph_sel_o              : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
+    periph_sel_o              : out std_logic_vector(f_log2_size(c_num_obc_periphs)-1 downto 0);
     
     periph_num_data_bytes_i   : in  std_logic_vector(c_msp_dl_width-1 downto 0);
     periph_buf_we_i           : in  std_logic;
@@ -304,12 +301,12 @@ begin
             case rx_opcode is
               when c_msp_op_req_hk =>
                 obc_send_trans <= '0';
-                periph_sel_o <= "0";
+                periph_sel_o <= f_obc_sel(c_periph_hk_regs);
                 trans_state <= EXP_SEND;
                 periph_data_ld_p_o <= '1';
               when c_msp_op_set_leds =>
                 obc_send_trans <= '1';
-                periph_sel_o <= "1";
+                periph_sel_o <= f_obc_sel(c_periph_leds);
                 trans_state <= TX_F_ACK;
               when others =>
                 trans_state <= TX_T_ACK;

@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 use work.genram_pkg.all;
 
@@ -9,6 +10,7 @@ package msp_pkg is
   --============================================================================
   function to7bits(v : std_logic_vector(7 downto 0)) return std_logic_vector;
   function to3bits(v : std_logic_vector(3 downto 0)) return std_logic_vector;
+  function f_obc_sel(periph : natural) return std_logic_vector;
   
   --============================================================================
   -- Constant declarations
@@ -32,6 +34,16 @@ package msp_pkg is
   constant c_msp_op_set_leds      : std_logic_vector(6 downto 0);
   constant c_msp_op_siphra_reg_op : std_logic_vector(6 downto 0);
   
+  -- Peripherals to OBC interface
+  constant c_num_obc_periphs            : natural;
+  
+  constant c_periph_hk_regs             : natural;
+  constant c_periph_leds                : natural;
+  
+  constant c_periph_siphra_base         : natural;
+  constant c_periph_siphra_reg_op       : natural;
+  constant c_periph_siphra_reg_val      : natural;
+
 end package;
 
 
@@ -71,4 +83,20 @@ package body msp_pkg is
   constant c_msp_op_set_leds      : std_logic_vector(6 downto 0) := to7bits(x"41");
   constant c_msp_op_siphra_reg_op : std_logic_vector(6 downto 0) := to7bits(x"42");
 
+  -- Peripherals to OBC interface
+  constant c_num_obc_periphs            : natural := 4;
+  
+  constant c_periph_hk_regs             : natural := 0;
+  constant c_periph_leds                : natural := 1;
+  
+  constant c_periph_siphra_base         : natural := 2;
+  constant c_periph_siphra_reg_op       : natural := 2;
+  constant c_periph_siphra_reg_val      : natural := 3;
+
+  -- Shorthand for nasty std_logic_vector(to_unsigned())...
+  function f_obc_sel(periph : natural) return std_logic_vector is
+  begin
+    return std_logic_vector(to_unsigned(periph, f_log2_size(c_num_obc_periphs)));
+  end function;
+ 
 end package body;

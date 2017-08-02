@@ -14,7 +14,13 @@ entity siphra_obc_periph is
 
     ----------------------------------------------------------------------------
     -- Interface to MSP data buffer
+    --    Sub-peripheral offsets:
+    --      (0) : SIPHRA register operation (OBC-S)
+    --      (1) : SIPHRA current register value (OBC-R)
     ----------------------------------------------------------------------------
+    -- Sub-peripheral enable
+    en_i              : in  std_logic_vector(1 downto 0);
+    
     -- Number of bytes available for transfer
     num_bytes_i       : in  std_logic_vector(c_msp_dl_width-1 downto 0);
     num_bytes_o       : out std_logic_vector(c_msp_dl_width-1 downto 0);
@@ -41,7 +47,7 @@ entity siphra_obc_periph is
     spi_cs_n_o        : out std_logic;
     spi_sclk_o        : out std_logic;
     spi_mosi_o        : out std_logic;
-    spi_miso_i        : in  std_logic    
+    spi_miso_i        : in  std_logic
   );
 end entity siphra_obc_periph;
 
@@ -114,27 +120,32 @@ architecture behav of siphra_obc_periph is
   --============================================================================
   -- Signal declarations
   --============================================================================
-  signal state            : t_state;
+  signal state                : t_state;
   
-  signal reg_op           : std_logic;
-  signal reg_op_start_p   : std_logic;
-  signal reg_op_ready     : std_logic;
-  signal reg_addr         : std_logic_vector( 6 downto 0);
-  signal reg_data_in      : std_logic_vector(31 downto 0);
-  signal reg_data_out     : std_logic_vector(31 downto 0);
+  signal reg_op               : std_logic;
+  signal reg_op_start_p       : std_logic;
+  signal reg_op_ready         : std_logic;
+  signal reg_op_ready_d0      : std_logic;
+  signal reg_op_ready_rise_p  : std_logic;
+  signal reg_addr             : std_logic_vector( 6 downto 0);
+  signal reg_data_in          : std_logic_vector(31 downto 0);
+  signal reg_data_out         : std_logic_vector(31 downto 0);
+  signal reg_val              : std_logic_vector(31 downto 0);
 
-  signal adc_value        : std_logic_vector(11 downto 0);
-  signal adc_trig_type    : std_logic_vector( 1 downto 0);
-  signal adc_trig_flag    : std_logic;
-  signal adc_chan         : std_logic_vector( 4 downto 0);
-  signal adc_valid        : std_logic;
+  signal adc_value            : std_logic_vector(11 downto 0);
+  signal adc_trig_type        : std_logic_vector( 1 downto 0);
+  signal adc_trig_flag        : std_logic;
+  signal adc_chan             : std_logic_vector( 4 downto 0);
+  signal adc_valid            : std_logic;
   
   signal addr       : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
   signal data       : std_logic_vector( 7 downto 0);
 
 begin -- behav
 
+  --============================================================================
   -- FSM for OBC interface
+  --============================================================================
   p_fsm : process (clk_i, rst_n_a_i) is
   begin
     if (rst_n_a_i = '0') then
@@ -144,19 +155,42 @@ begin -- behav
       we_o <= '0';
       data_rdy_p_o <= '0';
       reg_op_start_p <= '0';
+      reg_val <= (others => '0');
+      reg_op_ready_d0 <= '0';
+      reg_op_ready_rise_p <= '0';
+      num_bytes_o <= (others => '0');
     elsif rising_edge(clk_i) then
+      -- Default states for pulse signals
       data_rdy_p_o <= '0';
       reg_op_start_p <= '0';
+      
+      -- Current SIPHRA register value
+      reg_op_ready_d0 <= reg_op_ready;
+      reg_op_ready_rise_p <= (not reg_op_ready_d0) and reg_op_ready;
+      if (reg_op_ready_rise_p = '1') then
+        reg_val <= reg_data_out;
+      end if;
+      
+      -- Actual FSM logic
       case state is
         when IDLE =>
           addr <= (others => '0');
           we_o <= '0';
           if (data_rdy_p_i = '1') then
             state <= RECEIVE_DATA;
+          elsif (data_ld_p_i = '1') then
+            state <= SEND_DATA;
+            if (en_i = "10") and (reg_op_ready = '1') then
+              num_bytes_o <= std_logic_vector(to_unsigned(4, num_bytes_o'length));
+              data <= reg_val(31 downto 24);
+            else
+              num_bytes_o <= (others => '0');
+            end if;
           end if;
         when RECEIVE_DATA =>
           addr <= addr + 1;
           if (addr < unsigned(num_bytes_i)) then
+            -- TODO: Implement RECEIVE_DATA for other commands (?)
             if (addr < 4) then
               reg_data_in <= reg_data_in(23 downto 0) & data_i;
             else
@@ -167,13 +201,27 @@ begin -- behav
             reg_op_start_p <= '1';
             state <= IDLE;
           end if;
+        when SEND_DATA =>
+          addr <= addr + 1;
+          if (addr < 3) then
+            data <= reg_val(31 downto 24);
+            reg_val <= reg_val(31 downto 8) & x"00";
+          else
+            data_rdy_p_o <=  '1';
+          end if;
         when others =>
           state <= IDLE;
       end case;
     end if;
   end process p_fsm;
   
-  -- Instantiate core
+  -- Assign data source outputs
+  data_o <= data;
+  addr_o <= std_logic_vector(addr);
+  
+  --============================================================================
+  -- SIPHRA control component
+  --============================================================================
   cmp_siphra_ctrl : siphra_ctrl
     port map
     (

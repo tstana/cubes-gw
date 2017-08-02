@@ -81,6 +81,16 @@ end entity bemicro_cubes_btm;
 architecture arch of bemicro_cubes_btm is
 
   --============================================================================
+  -- Type definitions
+  --============================================================================
+  type t_obc_addr_array is array (0 to c_num_obc_periphs-1) of
+                std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
+  type t_obc_data_array is array (0 to c_num_obc_periphs-1) of
+                std_logic_vector(7 downto 0);
+  type t_obc_num_bytes_array is array (0 to c_num_obc_periphs-1) of
+                std_logic_vector(c_msp_dl_width-1 downto 0);
+
+  --============================================================================
   -- Constant declarations
   --============================================================================
   ------------------------------------------------------------------------------
@@ -98,14 +108,6 @@ architecture arch of bemicro_cubes_btm is
   ------------------------------------------------------------------------------
   constant c_i2c_address : std_logic_vector(6 downto 0) := "1110000";
   
-  ------------------------------------------------------------------------------
-  -- Peripherals to OBC interface
-  ------------------------------------------------------------------------------
-  constant c_num_obc_periphs  : natural := 2;
-  
-  constant c_periph_hk_regs   : natural := 0;
-  constant c_periph_leds      : natural := 1;
-
   --============================================================================
   -- Component declarations
   --============================================================================
@@ -138,13 +140,10 @@ architecture arch of bemicro_cubes_btm is
     );
   end component debouncer;
   
-  -- I2C slave to Wishbone master following MIST OBC protocol
+  -- OBC interface using MIST Space Protocol
   component mist_obc_interface is
     generic
     (
-      -- Number of peripherals to OBC interface component
-      g_num_periphs : natural;
-
       -- Baud divider ratio:
       --    g_baud_div = [f(clk_i) / f(baud)]-1
       --    Default: 115200 bps with 100 MHz clk_i
@@ -183,7 +182,7 @@ architecture arch of bemicro_cubes_btm is
       wdto_p_o    : out std_logic;
       
       -- Peripheral module signals
-      periph_sel_o              : out std_logic_vector(f_log2_size(g_num_periphs)-1 downto 0);
+      periph_sel_o              : out std_logic_vector(f_log2_size(c_num_obc_periphs)-1 downto 0);
       
       periph_num_data_bytes_i   : in  std_logic_vector(c_msp_dl_width-1 downto 0);
       periph_buf_we_i           : in  std_logic;
@@ -224,6 +223,52 @@ architecture arch of bemicro_cubes_btm is
     );
   end component hk_regs;
 
+  -- OBC peripheral for the SIPHRA interface
+  component siphra_obc_periph is
+    port
+    (
+      clk_i             : in  std_logic;
+      rst_n_a_i         : in  std_logic;
+
+      ----------------------------------------------------------------------------
+      -- Interface to MSP data buffer
+      --    Sub-peripheral offsets:
+      --      (0) : SIPHRA register operation (OBC-S)
+      --      (1) : SIPHRA current register value (OBC-R)
+      ----------------------------------------------------------------------------
+      -- Sub-peripheral enable
+      en_i              : in  std_logic_vector(1 downto 0);
+      
+      -- Number of bytes available for transfer
+      num_bytes_i       : in  std_logic_vector(c_msp_dl_width-1 downto 0);
+      num_bytes_o       : out std_logic_vector(c_msp_dl_width-1 downto 0);
+      
+      -- Data sink interface
+      data_rdy_p_i      : in  std_logic;
+      data_i            : in  std_logic_vector(7 downto 0);
+
+      -- Data source interface
+      data_ld_p_i       : in  std_logic;
+      we_o              : out std_logic;
+      addr_o            : out std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
+      data_o            : out std_logic_vector(7 downto 0);
+      data_rdy_p_o      : out std_logic;
+
+      ----------------------------------------------------------------------------
+      -- SIPHRA interface
+      ----------------------------------------------------------------------------
+      -- SIPHRA pins
+      siphra_sysclk_o   : out std_logic;
+      siphra_txd_i      : in  std_logic;
+
+      -- SPI interface
+      spi_cs_n_o        : out std_logic;
+      spi_sclk_o        : out std_logic;
+      spi_mosi_o        : out std_logic;
+      spi_miso_i        : in  std_logic
+    );
+  end component siphra_obc_periph;
+
   --============================================================================
   -- Signal declarations
   --============================================================================
@@ -248,11 +293,17 @@ architecture arch of bemicro_cubes_btm is
   
   signal obc_periph_sel         : std_logic_vector(f_log2_size(c_num_obc_periphs)-1 downto 0);
   signal obc_periph_en          : std_logic_vector(c_num_obc_periphs-1 downto 0);
+  signal obc_num_bytes_out      : std_logic_vector(c_msp_dl_width-1 downto 0);
   signal obc_num_bytes_in       : std_logic_vector(c_msp_dl_width-1 downto 0);
+  signal obc_num_bytes_mux      : t_obc_num_bytes_array;
   signal obc_buf_we_in          : std_logic;
+  signal obc_buf_we_mux         : std_logic_vector(c_num_obc_periphs-1 downto 0);
   signal obc_buf_addr_in        : std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
+  signal obc_buf_addr_mux       : t_obc_addr_array;
   signal obc_buf_data_in        : std_logic_vector(7 downto 0);
+  signal obc_buf_data_mux       : t_obc_data_array;
   signal obc_buf_data_in_rdy_p  : std_logic;
+  signal obc_buf_data_rdy_mux   : std_logic_vector(c_num_obc_periphs-1 downto 0);
   signal obc_buf_data_out       : std_logic_vector(7 downto 0);
   signal obc_buf_data_ld_p      : std_logic;
   signal obc_buf_data_out_rdy_p : std_logic;
@@ -341,12 +392,16 @@ gen_obc_en : for i in 0 to c_num_obc_periphs-1 generate
 end generate gen_obc_en;
   
   -- MUX peripheral module outputs to OBC interface inputs
+  obc_num_bytes_in <= obc_num_bytes_mux(to_integer(unsigned(obc_periph_sel)));
+  obc_buf_we_in <= obc_buf_we_mux(to_integer(unsigned(obc_periph_sel)));
+  obc_buf_addr_in <= obc_buf_addr_mux(to_integer(unsigned(obc_periph_sel)));
+  obc_buf_data_in <= obc_buf_data_mux(to_integer(unsigned(obc_periph_sel)));
+  obc_buf_data_in_rdy_p <= obc_buf_data_rdy_mux(to_integer(unsigned(obc_periph_sel)));
   
   -- Instantiate OBC interface component
   cmp_obc_interface : mist_obc_interface
     generic map
     (
-      g_num_periphs => 1,
       g_baud_div    => g_baud_div
     )
     port map
@@ -398,14 +453,14 @@ end generate gen_obc_en;
       rst_n_a_i           => rst_n,
       
       -- Number of bytes available on data request
-      num_bytes_o         => obc_num_bytes_in,
+      num_bytes_o         => obc_num_bytes_mux(c_periph_hk_regs),
       
       -- Interface to MSP data buffer
       data_ld_p_i         => obc_buf_data_ld_p,
-      we_o                => obc_buf_we_in,
-      addr_o              => obc_buf_addr_in,
-      data_o              => obc_buf_data_in,
-      data_rdy_p_o        => obc_buf_data_in_rdy_p,
+      we_o                => obc_buf_we_mux(c_periph_hk_regs),
+      addr_o              => obc_buf_addr_mux(c_periph_hk_regs),
+      data_o              => obc_buf_data_mux(c_periph_hk_regs),
+      data_rdy_p_o        => obc_buf_data_rdy_mux(c_periph_hk_regs),
       
       -- Interface to modules providing housekeeping
       gw_vers_i           => c_gw_version,
@@ -415,6 +470,14 @@ end generate gen_obc_en;
   --============================================================================
   -- Debug LEDs
   --============================================================================
+  -- LEDs are OBC data sink, set data and address ports to zeroes
+  obc_buf_we_mux(c_periph_leds) <= '0';
+  obc_buf_addr_mux(c_periph_leds) <= (others => '0');
+  obc_buf_data_mux(c_periph_leds) <= (others => '0');
+  obc_buf_data_rdy_mux(c_periph_leds) <= '0';
+  obc_num_bytes_mux(c_periph_leds) <= (others => '0');
+  
+  -- Process to sequence LEDs on reset, then relinquish control to OBC
   p_debug_leds : process (clk_100meg, rst_n) is
   begin
     if (rst_n = '0') then
@@ -450,20 +513,68 @@ end generate gen_obc_en;
     end if;
   end process p_debug_leds;
   
+  -- Output port to LEDs
   led_n_o <= not led;
   --============================================================================
   
-  -- Temporary
-  siphra_sysclk_o <= '0';
-  spi_cs_n <= '1';
-  spi_sclk <= '0';
-  spi_mosi <= '0';
+  --============================================================================
+  -- SIPHRA OBC peripheral
+  --============================================================================
+  cmp_siphra_interface : siphra_obc_periph
+    port map
+    (
+      clk_i             => clk_100meg,
+      rst_n_a_i         => rst_n,
+
+      ----------------------------------------------------------------------------
+      -- Interface to MSP data buffer
+      --    Sub-peripheral offsets:
+      --      (0) : SIPHRA register operation (OBC-S)
+      --      (1) : SIPHRA current register value (OBC-R)
+      ----------------------------------------------------------------------------
+      -- Sub-peripheral enable
+      en_i              => obc_periph_en(c_periph_siphra_reg_val downto
+                                            c_periph_siphra_reg_op),
+      
+      -- Number of bytes available for transfer
+      num_bytes_i       => obc_num_bytes_out,
+      num_bytes_o       => obc_num_bytes_mux(c_periph_siphra_base),
+      
+      -- Data sink interface
+      data_rdy_p_i      => obc_buf_data_out_rdy_p,
+      data_i            => obc_buf_data_out,
+
+      -- Data source interface
+      data_ld_p_i       => obc_buf_data_ld_p,
+      we_o              => obc_buf_we_mux(c_periph_siphra_base),
+      addr_o            => obc_buf_addr_mux(c_periph_siphra_base),
+      data_o            => obc_buf_data_mux(c_periph_siphra_base),
+      data_rdy_p_o      => obc_buf_data_rdy_mux(c_periph_siphra_base),
+
+      ----------------------------------------------------------------------------
+      -- SIPHRA interface
+      ----------------------------------------------------------------------------
+      -- SIPHRA pins
+      siphra_sysclk_o   => siphra_sysclk_o,
+      siphra_txd_i      => siphra_txd_i,
+
+      -- SPI interface
+      spi_cs_n_o        => spi_cs_n_o,
+      spi_sclk_o        => spi_sclk_o,
+      spi_mosi_o        => spi_mosi_o,
+      spi_miso_i        => spi_miso_i
+    );
   
-  -- Actual SPI outputs
-  spi_cs_n_o <= '1';
-  spi_sclk_o <= '0';
-  spi_mosi_o <= '0';
-  
+  -- Peripheral component presents a single data source interface, fan out the
+  -- data source interface to the MUX inputs
+  --
+  -- TODO: Implem. multiple data source interfaces?
+  obc_num_bytes_mux(c_periph_siphra_reg_val) <= obc_num_bytes_mux(c_periph_siphra_base);
+  obc_buf_we_mux(c_periph_siphra_reg_val) <= obc_buf_we_mux(c_periph_siphra_base);
+  obc_buf_addr_mux(c_periph_siphra_reg_val) <= obc_buf_addr_mux(c_periph_siphra_base);
+  obc_buf_data_mux(c_periph_siphra_reg_val) <= obc_buf_data_mux(c_periph_siphra_base);
+  obc_buf_data_rdy_mux(c_periph_siphra_reg_val) <= obc_buf_data_rdy_mux(c_periph_siphra_base);
+
 end architecture arch;
 --==============================================================================
 --  architecture end
