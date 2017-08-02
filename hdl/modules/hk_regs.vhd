@@ -12,11 +12,15 @@ entity hk_regs is
     clk_i               : in  std_logic;
     rst_n_a_i           : in  std_logic;
     
-    -- Number of bytes available on data request
-    num_bytes_o         : out std_logic_vector(c_msp_dl_width-1 downto 0);
-    
+    ----------------------------------------------------------------------------
     -- Interface to MSP data buffer
+    ----------------------------------------------------------------------------
+    -- Enable input
+    en_i                : in  std_logic;
+    
+    -- Data source interface
     data_ld_p_i         : in  std_logic;
+    num_bytes_o         : out std_logic_vector(c_msp_dl_width-1 downto 0);
     we_o                : out std_logic;
     addr_o              : out std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
     data_o              : out std_logic_vector(7 downto 0);
@@ -68,7 +72,7 @@ begin -- architecture behav
         when IDLE =>
           addr <= (others => '0');
           we_o <= '0';
-          if (data_ld_p_i = '1') then
+          if (en_i = '1') and (data_ld_p_i = '1') then
             state <= SEND_DATA;
             data <= gw_vers_i(15 downto 8);
             we_o <= '1';

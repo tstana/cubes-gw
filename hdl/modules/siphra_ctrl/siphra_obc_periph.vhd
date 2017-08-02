@@ -21,16 +21,14 @@ entity siphra_obc_periph is
     -- Sub-peripheral enable
     en_i              : in  std_logic_vector(1 downto 0);
     
-    -- Number of bytes available for transfer
-    num_bytes_i       : in  std_logic_vector(c_msp_dl_width-1 downto 0);
-    num_bytes_o       : out std_logic_vector(c_msp_dl_width-1 downto 0);
-    
     -- Data sink interface
     data_rdy_p_i      : in  std_logic;
+    num_bytes_i       : in  std_logic_vector(c_msp_dl_width-1 downto 0);
     data_i            : in  std_logic_vector(7 downto 0);
 
     -- Data source interface
     data_ld_p_i       : in  std_logic;
+    num_bytes_o       : out std_logic_vector(c_msp_dl_width-1 downto 0);
     we_o              : out std_logic;
     addr_o            : out std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
     data_o            : out std_logic_vector(7 downto 0);
@@ -176,15 +174,19 @@ begin -- behav
         when IDLE =>
           addr <= (others => '0');
           we_o <= '0';
-          if (data_rdy_p_i = '1') then
-            state <= RECEIVE_DATA;
-          elsif (data_ld_p_i = '1') then
-            state <= SEND_DATA;
-            if (en_i = "10") and (reg_op_ready = '1') then
-              num_bytes_o <= std_logic_vector(to_unsigned(4, num_bytes_o'length));
-              data <= reg_val(31 downto 24);
-            else
-              num_bytes_o <= (others => '0');
+          if (en_i /= (en_i'range => '0')) then
+            if (data_rdy_p_i = '1') then
+              if (en_i = "01") then
+                state <= RECEIVE_DATA;
+              end if;
+            elsif (data_ld_p_i = '1') then
+              state <= SEND_DATA;
+              if (en_i = "10") and (reg_op_ready = '1') then
+                num_bytes_o <= std_logic_vector(to_unsigned(4, num_bytes_o'length));
+                data <= reg_val(31 downto 24);
+              else
+                num_bytes_o <= (others => '0');
+              end if;
             end if;
           end if;
         when RECEIVE_DATA =>
@@ -208,6 +210,7 @@ begin -- behav
             reg_val <= reg_val(31 downto 8) & x"00";
           else
             data_rdy_p_o <=  '1';
+            state <= IDLE;
           end if;
         when others =>
           state <= IDLE;

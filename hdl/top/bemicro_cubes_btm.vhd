@@ -206,12 +206,16 @@ architecture arch of bemicro_cubes_btm is
     (
       clk_i               : in  std_logic;
       rst_n_a_i           : in  std_logic;
-      
-      -- Number of bytes available on data request
-      num_bytes_o         : out std_logic_vector(c_msp_dl_width-1 downto 0);
-      
+    
+      --------------------------------------------------------------------------
       -- Interface to MSP data buffer
+      --------------------------------------------------------------------------
+      -- Enable input
+      en_i                : in  std_logic;
+      
+      -- Data source interface
       data_ld_p_i         : in  std_logic;
+      num_bytes_o         : out std_logic_vector(c_msp_dl_width-1 downto 0);
       we_o                : out std_logic;
       addr_o              : out std_logic_vector(f_log2_size(c_msp_mtu)-1 downto 0);
       data_o              : out std_logic_vector(7 downto 0);
@@ -230,12 +234,12 @@ architecture arch of bemicro_cubes_btm is
       clk_i             : in  std_logic;
       rst_n_a_i         : in  std_logic;
 
-      ----------------------------------------------------------------------------
+      --------------------------------------------------------------------------
       -- Interface to MSP data buffer
       --    Sub-peripheral offsets:
       --      (0) : SIPHRA register operation (OBC-S)
       --      (1) : SIPHRA current register value (OBC-R)
-      ----------------------------------------------------------------------------
+      --------------------------------------------------------------------------
       -- Sub-peripheral enable
       en_i              : in  std_logic_vector(1 downto 0);
       
@@ -254,9 +258,9 @@ architecture arch of bemicro_cubes_btm is
       data_o            : out std_logic_vector(7 downto 0);
       data_rdy_p_o      : out std_logic;
 
-      ----------------------------------------------------------------------------
+      --------------------------------------------------------------------------
       -- SIPHRA interface
-      ----------------------------------------------------------------------------
+      --------------------------------------------------------------------------
       -- SIPHRA pins
       siphra_sysclk_o   : out std_logic;
       siphra_txd_i      : in  std_logic;
@@ -452,17 +456,15 @@ end generate gen_obc_en;
       clk_i               => clk_100meg,
       rst_n_a_i           => rst_n,
       
-      -- Number of bytes available on data request
-      num_bytes_o         => obc_num_bytes_mux(c_periph_hk_regs),
+      en_i                => obc_periph_en(c_periph_hk_regs),
       
-      -- Interface to MSP data buffer
       data_ld_p_i         => obc_buf_data_ld_p,
+      num_bytes_o         => obc_num_bytes_mux(c_periph_hk_regs),
       we_o                => obc_buf_we_mux(c_periph_hk_regs),
       addr_o              => obc_buf_addr_mux(c_periph_hk_regs),
       data_o              => obc_buf_data_mux(c_periph_hk_regs),
       data_rdy_p_o        => obc_buf_data_rdy_mux(c_periph_hk_regs),
       
-      -- Interface to modules providing housekeeping
       gw_vers_i           => c_gw_version,
       leds_i              => led
     );
