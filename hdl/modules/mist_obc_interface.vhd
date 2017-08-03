@@ -90,6 +90,7 @@ entity mist_obc_interface is
     periph_data_ld_p_o        : out std_logic;
     periph_data_rdy_p_i       : in  std_logic;
     
+    periph_num_data_bytes_o   : out std_logic_vector(c_msp_dl_width-1 downto 0);
     periph_buf_data_o         : out std_logic_vector(7 downto 0);
     periph_data_rdy_p_o       : out std_logic;
 
@@ -275,11 +276,12 @@ begin
     if (rst_n_a_i = '0') then
       trans_state <= IDLE;
       trans_done_p <= '0';
+      tid <= '0';
       obc_send_trans <= '0';
       periph_sel_o <= (others => '0');
       periph_data_rdy_p_o <= '0';
       periph_data_ld_p_o <= '0';
-      tid <= '0';
+      periph_num_data_bytes_o <= (others => '0');
       
     elsif rising_edge(clk_i) then
       
@@ -308,6 +310,10 @@ begin
                 obc_send_trans <= '1';
                 periph_sel_o <= f_obc_sel(c_periph_leds);
                 trans_state <= TX_F_ACK;
+              when c_msp_op_siphra_reg_op =>
+                obc_send_trans <= '1';
+                periph_sel_o <= f_obc_sel(c_periph_siphra_reg_op);
+                trans_state <= TX_F_ACK;
               when others =>
                 trans_state <= TX_T_ACK;
             end case;
@@ -335,6 +341,7 @@ begin
         when RX_DATA_FRAME =>
           if (frame_rxed_p = '1') then
             periph_data_rdy_p_o <= '1';
+            periph_num_data_bytes_o <= std_logic_vector(frame_data_bytes);
             if (trans_data_bytes = 0) then
               trans_state <= TX_T_ACK;
             else

@@ -155,6 +155,8 @@ begin -- behav
       data_rdy_p_o <= '0';
       reg_op_start_p <= '0';
       reg_val <= (others => '0');
+      reg_addr <= (others => '0');
+      reg_data_in <= (others => '0');
       reg_op_ready_d0 <= '0';
       reg_op_ready_rise_p <= '0';
       num_bytes <= (others => '0');
@@ -179,14 +181,15 @@ begin -- behav
             if (data_rdy_p_i = '1') then
               if (en_i = "01") then
                 state <= RECEIVE_DATA;
+                num_bytes <= unsigned(num_bytes_i);
               end if;
             elsif (data_ld_p_i = '1') then
               state <= SEND_DATA;
               if (en_i = "10") and (reg_op_ready = '1') then
-                num_bytes <= to_unsigned(5, num_bytes_o'length);
+                num_bytes <= to_unsigned(5, num_bytes'length);
                 data <= reg_val(31 downto 24);
               else
-                num_bytes_o <= (others => '0');
+                num_bytes <= (others => '0');
               end if;
             end if;
           end if;

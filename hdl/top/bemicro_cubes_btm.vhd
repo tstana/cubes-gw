@@ -191,6 +191,7 @@ architecture arch of bemicro_cubes_btm is
       periph_data_ld_p_o        : out std_logic;
       periph_data_rdy_p_i       : in  std_logic;
       
+      periph_num_data_bytes_o   : out std_logic_vector(c_msp_dl_width-1 downto 0);
       periph_buf_data_o         : out std_logic_vector(7 downto 0);
       periph_data_rdy_p_o       : out std_logic;
 
@@ -439,6 +440,7 @@ end generate gen_obc_en;
       periph_data_ld_p_o        => obc_buf_data_ld_p,
       periph_data_rdy_p_i       => obc_buf_data_in_rdy_p,
       
+      periph_num_data_bytes_o   => obc_num_bytes_out,
       periph_buf_data_o         => obc_buf_data_out,
       periph_data_rdy_p_o       => obc_buf_data_out_rdy_p,
 
