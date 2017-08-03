@@ -643,6 +643,15 @@ begin
           receive_data_frame;
           send_t_ack;
           end_transaction;
+        when c_msp_op_siphra_reg_op =>
+          frame_data_bytes <= 5;
+          trans_data_bytes <= 5;
+          dl <= std_logic_vector(to_unsigned(5, dl'length));
+          send_trans_header;
+          receive_f_ack;
+          send_data_frame;
+          receive_t_ack;
+          end_transaction;
         when others =>
           null;
       end case;
@@ -690,14 +699,10 @@ begin
     ----------------------------------------------------------------------------
     -- Transactions
     ----------------------------------------------------------------------------
---    data_buf(0) <= x"ff";
---    run_transaction(c_msp_op_set_leds);
---
-    data_buf(0) <= x"12";
-    run_transaction(c_msp_op_set_leds);
+    data_buf <= ( 0 => x"12", 1 =>  x"34", 2 => x"56", 3 => x"78", 4 => x"03",
+                  others => x"00" );
+    run_transaction(c_msp_op_siphra_reg_op);
     
-    run_transaction(c_msp_op_req_hk);
-
     ----------------------------------------------------------------------------
     -- End stimuli
     ----------------------------------------------------------------------------
