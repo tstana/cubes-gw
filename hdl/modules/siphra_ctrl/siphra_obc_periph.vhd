@@ -138,7 +138,6 @@ architecture behav of siphra_obc_periph is
   
   signal num_bytes            : unsigned(c_msp_dl_width-1 downto 0);
   signal addr                 : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
-  signal data                 : std_logic_vector( 7 downto 0);
 
 begin -- behav
 
@@ -150,9 +149,10 @@ begin -- behav
     if (rst_n_a_i = '0') then
       state <= IDLE;
       addr <= (others => '0');
-      data <= (others => '0');
+      data_o <= (others => '0');
       we_o <= '0';
       data_rdy_p_o <= '0';
+      reg_op <= '0';
       reg_op_start_p <= '0';
       reg_val <= (others => '0');
       reg_addr <= (others => '0');
@@ -184,10 +184,9 @@ begin -- behav
                 num_bytes <= unsigned(num_bytes_i);
               end if;
             elsif (data_ld_p_i = '1') then
-              state <= SEND_DATA;
               if (en_i = "10") and (reg_op_ready = '1') then
+                state <= SEND_DATA;
                 num_bytes <= to_unsigned(5, num_bytes'length);
-                data <= reg_val(31 downto 24);
               else
                 num_bytes <= (others => '0');
               end if;
@@ -195,22 +194,23 @@ begin -- behav
           end if;
         when RECEIVE_DATA =>
           addr <= addr + 1;
-          if (addr < num_bytes) then
-            -- TODO: Implement RECEIVE_DATA for other commands (?)
-            if (addr < 4) then
-              reg_data_in <= reg_data_in(23 downto 0) & data_i;
+          if (en_i = "01") then
+            if (addr < num_bytes) then
+                reg_data_in <= reg_data_in(23 downto 0) & data_i;
             else
               reg_addr <= data_i(7 downto 1);
               reg_op <= data_i(0);
+              reg_op_start_p <= '1';
+              state <= IDLE;
             end if;
           else
-            reg_op_start_p <= '1';
             state <= IDLE;
           end if;
         when SEND_DATA =>
           addr <= addr + 1;
-          if (addr < num_bytes-1) then
-            data <= reg_val(31 downto 24);
+          -- TODO: Implement enable here too!
+          if (addr < num_bytes-1) then    -- NB: Bug if reg_op_ready = '0' !!!
+            data_o <= reg_val(31 downto 24);
             reg_val <= reg_val(23 downto 8) & x"00";
           else
             data_rdy_p_o <=  '1';
@@ -224,7 +224,6 @@ begin -- behav
   
   -- Assign data source outputs
   num_bytes_o <= std_logic_vector(num_bytes);
-  data_o <= data;
   addr_o <= std_logic_vector(addr);
   
   --============================================================================

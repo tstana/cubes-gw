@@ -14,6 +14,7 @@ vcom -93 -work work {../../hdl/bemicro/mist_uart_wrapper.vhd}
 vcom -93 -work work {../../hdl/modules/msp_pkg.vhd}
 vcom -93 -work work {../../hdl/modules/mist_obc_interface.vhd}
 vcom -93 -work work {../../hdl/modules/hk_regs.vhd}
+vcom -93 -work work {../../hdl/modules/siphra_ctrl/spi_master.vhd}
 vcom -93 -work work {../../hdl/modules/siphra_ctrl/siphra_ctrl.vhd}
 vcom -93 -work work {../../hdl/modules/siphra_ctrl/siphra_obc_periph.vhd}
 vcom -93 -work work {../../hdl/top/bemicro_cubes_btm.vhd}
