@@ -31,6 +31,7 @@ package msp_pkg is
   constant c_msp_op_get_cubes_id  : std_logic_vector(6 downto 0);
   constant c_msp_op_set_leds      : std_logic_vector(6 downto 0);
   constant c_msp_op_siphra_reg_op : std_logic_vector(6 downto 0);
+  constant c_msp_op_req_siphra_reg_val  : std_logic_vector(6 downto 0);
   
   -- Peripherals to OBC interface
   constant c_num_obc_periphs            : natural;
@@ -75,7 +76,8 @@ package body msp_pkg is
   constant c_msp_op_get_cubes_id  : std_logic_vector(6 downto 0) := to7bits(x"40");
   constant c_msp_op_set_leds      : std_logic_vector(6 downto 0) := to7bits(x"41");
   constant c_msp_op_siphra_reg_op : std_logic_vector(6 downto 0) := to7bits(x"42");
-
+  constant c_msp_op_req_siphra_reg_val  : std_logic_vector(6 downto 0) := to7bits(x"43");
+  
   -- Peripherals to OBC interface
   constant c_num_obc_periphs            : natural := 4;
   

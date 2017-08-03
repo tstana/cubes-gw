@@ -249,6 +249,11 @@ architecture arch of testbench is
     is <<signal .testbench.cmp_dut.plls_locked : std_logic>>;
   alias dut_led_sequenced
     is <<signal .testbench.cmp_dut.led_sequenced : std_logic>>;
+  alias dut_siphra_reg_val
+    is <<signal .testbench.cmp_dut.cmp_siphra_interface.reg_data_out :
+                    std_logic_vector(31 downto 0)>>;
+  alias dut_siphra_reg_op_ready is
+    <<signal .testbench.cmp_dut.cmp_siphra_interface.reg_op_ready : std_logic>>;
 
 --==============================================================================
 --  architecture begin
@@ -635,12 +640,15 @@ begin
           send_data_frame;
           receive_t_ack;
           end_transaction;
-        when c_msp_op_req_hk =>
+        when c_msp_op_req_hk |
+             c_msp_op_req_siphra_reg_val =>
           dl <= std_logic_vector(to_unsigned(0, dl'length));
           send_trans_header;
           receive_exp_send;
-          send_f_ack;
-          receive_data_frame;
+          while (trans_data_bytes > 0) loop
+            send_f_ack;
+            receive_data_frame;
+          end loop;
           send_t_ack;
           end_transaction;
         when c_msp_op_siphra_reg_op =>
@@ -702,6 +710,14 @@ begin
     data_buf <= ( 0 => x"12", 1 =>  x"34", 2 => x"56", 3 => x"78", 4 => x"03",
                   others => x"00" );
     run_transaction(c_msp_op_siphra_reg_op);
+    
+    dut_siphra_reg_val <= force x"87654321";
+    dut_siphra_reg_op_ready <= force '0';
+    wait until rising_edge(clk_50meg);
+    wait until rising_edge(clk_50meg);
+    dut_siphra_reg_op_ready <= release;
+    run_transaction(c_msp_op_req_siphra_reg_val);
+    dut_siphra_reg_val <= release;
     
     ----------------------------------------------------------------------------
     -- End stimuli

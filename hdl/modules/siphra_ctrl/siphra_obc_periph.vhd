@@ -180,13 +180,16 @@ begin -- behav
           if (en_i /= (en_i'range => '0')) then
             if (data_rdy_p_i = '1') then
               if (en_i = "01") then
-                state <= RECEIVE_DATA;
                 num_bytes <= unsigned(num_bytes_i);
+                state <= RECEIVE_DATA;
               end if;
             elsif (data_ld_p_i = '1') then
               if (en_i = "10") and (reg_op_ready = '1') then
+                num_bytes <= to_unsigned(4, num_bytes'length);
+                data_o <= reg_val(31 downto 24);
+                reg_val <= reg_val(23 downto 0) & x"00";
+                we_o <= '1';
                 state <= SEND_DATA;
-                num_bytes <= to_unsigned(5, num_bytes'length);
               else
                 num_bytes <= (others => '0');
               end if;
@@ -208,12 +211,15 @@ begin -- behav
           end if;
         when SEND_DATA =>
           addr <= addr + 1;
-          -- TODO: Implement enable here too!
-          if (addr < num_bytes-1) then    -- NB: Bug if reg_op_ready = '0' !!!
-            data_o <= reg_val(31 downto 24);
-            reg_val <= reg_val(23 downto 8) & x"00";
+          if (en_i = "10") then
+            if (addr < num_bytes) then
+              data_o <= reg_val(31 downto 24);
+              reg_val <= reg_val(23 downto 0) & x"00";
+            else
+              data_rdy_p_o <=  '1';
+              state <= IDLE;
+            end if;
           else
-            data_rdy_p_o <=  '1';
             state <= IDLE;
           end if;
         when others =>

@@ -314,6 +314,11 @@ begin
                 obc_send_trans <= '1';
                 periph_sel_o <= f_obc_sel(c_periph_siphra_reg_op);
                 trans_state <= TX_F_ACK;
+              when c_msp_op_req_siphra_reg_val =>
+                obc_send_trans <= '0';
+                periph_sel_o <= f_obc_sel(c_periph_siphra_reg_val);
+                trans_state <= EXP_SEND;
+                periph_data_ld_p_o <= '1';
               when others =>
                 trans_state <= TX_T_ACK;
             end case;
