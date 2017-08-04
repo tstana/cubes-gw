@@ -212,11 +212,12 @@ begin -- behav
         when SEND_DATA =>
           addr <= addr + 1;
           if (en_i = "10") then
-            if (addr < num_bytes) then
+            if (addr < num_bytes-1) then
               data_o <= reg_val(31 downto 24);
               reg_val <= reg_val(23 downto 0) & x"00";
             else
               data_rdy_p_o <=  '1';
+              we_o <= '0';
               state <= IDLE;
             end if;
           else
