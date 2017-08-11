@@ -301,6 +301,8 @@ begin
           if (frame_rxed_p = '1') then
             tid <= fid;
             case rx_opcode is
+              when c_msp_op_null =>
+                trans_state <= IDLE;
               when c_msp_op_req_hk =>
                 obc_send_trans <= '0';
                 periph_sel_o <= f_obc_sel(c_periph_hk_regs);
