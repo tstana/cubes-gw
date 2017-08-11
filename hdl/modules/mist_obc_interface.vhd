@@ -124,6 +124,8 @@ architecture behav of mist_obc_interface is
 
     TX_DATA_FRAME,
     RX_DATA_FRAME,
+    
+    TX_NULL_FRAME,
 
     APPLY_RX_DATA
   );
@@ -219,6 +221,9 @@ architecture behav of mist_obc_interface is
   signal trans_data_bytes       : unsigned(c_msp_dl_width-1 downto 0);
   signal trans_done_p           : std_logic;
   
+  signal trans_unexp_rx_p       : std_logic;
+  signal trans_tx_null_p        : std_logic;
+  
   signal buf_data_in            : std_logic_vector(7 downto 0);
   signal buf_data_out           : std_logic_vector(7 downto 0);
   signal buf_addr               : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
@@ -290,99 +295,113 @@ begin
       periph_data_rdy_p_o <= '0';
       periph_data_ld_p_o <= '0';
       
-      case trans_state is
-        when IDLE =>
-          obc_send_trans <= '0';
-          if (i2c_addr_match_p = '1') then
-            trans_state <= TRANS_HEADER;
-          end if;
-          
-        when TRANS_HEADER =>
-          if (frame_rxed_p = '1') then
-            tid <= fid;
-            case rx_opcode is
-              when c_msp_op_null =>
-                trans_state <= IDLE;
-              when c_msp_op_req_hk =>
-                obc_send_trans <= '0';
-                periph_sel_o <= f_obc_sel(c_periph_hk_regs);
-                trans_state <= EXP_SEND;
-                periph_data_ld_p_o <= '1';
-              when c_msp_op_set_leds =>
-                obc_send_trans <= '1';
-                periph_sel_o <= f_obc_sel(c_periph_leds);
-                trans_state <= TX_F_ACK;
-              when c_msp_op_siphra_reg_op =>
-                obc_send_trans <= '1';
-                periph_sel_o <= f_obc_sel(c_periph_siphra_reg_op);
-                trans_state <= TX_F_ACK;
-              when c_msp_op_req_siphra_reg_val =>
-                obc_send_trans <= '0';
-                periph_sel_o <= f_obc_sel(c_periph_siphra_reg_val);
-                trans_state <= EXP_SEND;
-                periph_data_ld_p_o <= '1';
-              when others =>
-                trans_state <= TX_T_ACK;
-            end case;
-          end if;
-          
-        when EXP_SEND =>
-          if (frame_txed_p = '1') then
-            trans_state <= RX_F_ACK;
-          end if;
-          
-        when RX_F_ACK =>
-          if (frame_rxed_p = '1') then
-            if (trans_data_bytes /= 0) then
-              trans_state <= TX_DATA_FRAME;
+      if (trans_unexp_rx_p = '1') then
+        trans_state <= TRANS_HEADER;
+      elsif (trans_tx_null_p = '1') then
+        trans_state <= TX_NULL_FRAME;
+      else
+        
+        case trans_state is
+          when IDLE =>
+            obc_send_trans <= '0';
+            if (i2c_addr_match_p = '1') then
+              trans_state <= TRANS_HEADER;
             end if;
-          end if;
-          
-        when TX_F_ACK =>
-          if (frame_txed_p = '1') then
-            if (trans_data_bytes /= 0) then
-              trans_state <= RX_DATA_FRAME;
+            
+          when TRANS_HEADER =>
+            if (frame_rxed_p = '1') then
+              tid <= fid;
+              case rx_opcode is
+                when c_msp_op_null =>
+                  trans_state <= IDLE;
+                when c_msp_op_req_hk =>
+                  obc_send_trans <= '0';
+                  periph_sel_o <= f_obc_sel(c_periph_hk_regs);
+                  trans_state <= EXP_SEND;
+                  periph_data_ld_p_o <= '1';
+                when c_msp_op_set_leds =>
+                  obc_send_trans <= '1';
+                  periph_sel_o <= f_obc_sel(c_periph_leds);
+                  trans_state <= TX_F_ACK;
+                when c_msp_op_siphra_reg_op =>
+                  obc_send_trans <= '1';
+                  periph_sel_o <= f_obc_sel(c_periph_siphra_reg_op);
+                  trans_state <= TX_F_ACK;
+                when c_msp_op_req_siphra_reg_val =>
+                  obc_send_trans <= '0';
+                  periph_sel_o <= f_obc_sel(c_periph_siphra_reg_val);
+                  trans_state <= EXP_SEND;
+                  periph_data_ld_p_o <= '1';
+                when others =>
+                  trans_state <= TX_T_ACK;
+              end case;
             end if;
-          end if;
-          
-        when RX_DATA_FRAME =>
-          if (frame_rxed_p = '1') then
-            periph_data_rdy_p_o <= '1';
-            periph_num_data_bytes_o <= std_logic_vector(frame_data_bytes);
-            if (trans_data_bytes = 0) then
-              trans_state <= TX_T_ACK;
-            else
-              trans_state <= TX_F_ACK;
-            end if;
-          end if;
-
-        when TX_DATA_FRAME =>
-          if (frame_txed_p = '1') then
-            if (trans_data_bytes = 0) then
-              trans_state <= RX_T_ACK;
-            else
+            
+          when EXP_SEND =>
+            if (frame_txed_p = '1') then
               trans_state <= RX_F_ACK;
             end if;
-          end if;
-          
-        when RX_T_ACK =>
-          if (frame_rxed_p = '1') then
-            trans_done_p <= '1';
+            
+          when RX_F_ACK =>
+            if (frame_rxed_p = '1') then
+              if (trans_data_bytes /= 0) then
+                trans_state <= TX_DATA_FRAME;
+              end if;
+            end if;
+            
+          when TX_F_ACK =>
+            if (frame_txed_p = '1') then
+              if (trans_data_bytes /= 0) then
+                trans_state <= RX_DATA_FRAME;
+              end if;
+            end if;
+            
+          when RX_DATA_FRAME =>
+            if (frame_rxed_p = '1') then
+              periph_data_rdy_p_o <= '1';
+              periph_num_data_bytes_o <= std_logic_vector(frame_data_bytes);
+              if (trans_data_bytes = 0) then
+                trans_state <= TX_T_ACK;
+              else
+                trans_state <= TX_F_ACK;
+              end if;
+            end if;
+
+          when TX_DATA_FRAME =>
+            if (frame_txed_p = '1') then
+              if (trans_data_bytes = 0) then
+                trans_state <= RX_T_ACK;
+              else
+                trans_state <= RX_F_ACK;
+              end if;
+            end if;
+            
+          when RX_T_ACK =>
+            if (frame_rxed_p = '1') then
+              trans_done_p <= '1';
+              trans_state <= IDLE;
+            end if;
+            
+          when TX_T_ACK =>
+            if (frame_txed_p = '1') then
+              trans_done_p <= '1';
+              trans_state <= IDLE;
+            end if;
+            
+          when TX_NULL_FRAME =>
+            if (frame_txed_p = '1') then
+              trans_done_p <= '1';
+              trans_state <= IDLE;
+            end if;
+            
+          when others =>
             trans_state <= IDLE;
-          end if;
-          
-        when TX_T_ACK =>
-          if (frame_txed_p = '1') then
-            trans_done_p <= '1';
-            trans_state <= IDLE;
-          end if;
-          
-        when others =>
-          trans_state <= IDLE;
-          
-      end case;
+            
+        end case;
+        
+      end if; -- (trans_unexp_rx_p = '1') or (trans_tx_null_p = '1')
       
-    end if;
+    end if; -- rising_edge(clk_i)
   end process p_trans_fsm;
   
   --============================================================================
@@ -416,6 +435,9 @@ begin
       buf_addr <= (others => '0');
       buf_we_p <= '0';
       
+      trans_unexp_rx_p <= '0';
+      trans_tx_null_p <= '0';
+      
     elsif rising_edge(clk_i) then
    
       -- Pulse signals back to '0'
@@ -426,6 +448,9 @@ begin
       tx_start_p <= '0';
       
       buf_we_p <= '0';
+      
+      trans_unexp_rx_p <= '0';
+      trans_tx_null_p <= '0';
       
       -- Buffer address increment after write; new transactions should write
       -- starting from buffer address 0.
@@ -443,43 +468,95 @@ begin
           if (i2c_addr_match_p = '1') then
             case trans_state is
               when IDLE =>
-                frame_state <= RX_HEADER_BYTES;
+                if (i2c_op = '0') then
+                  frame_state <= RX_HEADER_BYTES;
+                else
+                  tx_data_len <= (others => '0');
+                  i2c_tx_byte <= '0' & c_msp_op_null;
+                  tx_start_p <= '1';
+                  trans_tx_null_p <= '1';
+                  frame_state <= TX_HEADER_BYTES;
+                end if;
               when EXP_SEND =>
-                frame_state <= TX_HEADER_BYTES;
-                tx_data_len <= periph_num_data_bytes_i;
-                trans_data_bytes <= unsigned(periph_num_data_bytes_i);
-                i2c_tx_byte <= fid & c_msp_op_exp_send;
-                tx_start_p <= '1';
+                if (i2c_op = '1') then
+                  frame_state <= TX_HEADER_BYTES;
+                  tx_data_len <= periph_num_data_bytes_i;
+                  trans_data_bytes <= unsigned(periph_num_data_bytes_i);
+                  i2c_tx_byte <= fid & c_msp_op_exp_send;
+                  tx_start_p <= '1';
+                else
+                  trans_unexp_rx_p <= '1';
+                  frame_state <= RX_HEADER_BYTES;
+                end if;
               when RX_F_ACK =>
-                frame_state <= RX_HEADER_BYTES;
+                if (i2c_op = '0') then
+                  frame_state <= RX_HEADER_BYTES;
+                else
+                  tx_data_len <= (others => '0');
+                  i2c_tx_byte <= '0' & c_msp_op_null;
+                  tx_start_p <= '1';
+                  trans_tx_null_p <= '1';
+                  frame_state <= TX_HEADER_BYTES;
+                end if;
               when TX_F_ACK =>
-                frame_state <= TX_HEADER_BYTES;
-                tx_data_len <= (others => '0');
-                i2c_tx_byte <= fid & c_msp_op_f_ack;
-                tx_start_p <= '1';
+                if (i2c_op = '1') then
+                  frame_state <= TX_HEADER_BYTES;
+                  tx_data_len <= (others => '0');
+                  i2c_tx_byte <= fid & c_msp_op_f_ack;
+                  tx_start_p <= '1';
+                else
+                  frame_state <= RX_HEADER_BYTES;
+                  trans_unexp_rx_p <= '1';
+                end if;
               when RX_T_ACK =>
-                frame_state <= RX_HEADER_BYTES;
+                if (i2c_op = '0') then
+                  frame_state <= RX_HEADER_BYTES;
+                else
+                  tx_data_len <= (others => '0');
+                  i2c_tx_byte <= '0' & c_msp_op_null;
+                  tx_start_p <= '1';
+                  trans_tx_null_p <= '1';
+                  frame_state <= TX_HEADER_BYTES;
+                end if;
               when TX_T_ACK =>
-                frame_state <= TX_HEADER_BYTES;
-                tx_data_len <= (others => '0');
-                i2c_tx_byte <= tid & c_msp_op_t_ack;
-                tx_start_p <= '1';
+                if (i2c_op = '1') then
+                  frame_state <= TX_HEADER_BYTES;
+                  tx_data_len <= (others => '0');
+                  i2c_tx_byte <= tid & c_msp_op_t_ack;
+                  tx_start_p <= '1';
+                else
+                  frame_state <= RX_HEADER_BYTES;
+                  trans_unexp_rx_p <= '1';
+                end if;
               when RX_DATA_FRAME =>
-                if (trans_data_bytes >= c_msp_mtu) then
-                  frame_data_bytes <= to_unsigned(c_msp_mtu, frame_data_bytes'length);
+                if (i2c_op = '0') then
+                  if (trans_data_bytes >= c_msp_mtu) then
+                    frame_data_bytes <= to_unsigned(c_msp_mtu, frame_data_bytes'length);
+                  else
+                    frame_data_bytes <= trans_data_bytes;
+                  end if;
+                  frame_state <= RX_DATA_BYTES;
                 else
-                  frame_data_bytes <= trans_data_bytes;
+                  tx_data_len <= (others => '0');
+                  i2c_tx_byte <= '0' & c_msp_op_null;
+                  tx_start_p <= '1';
+                  trans_tx_null_p <= '1';
+                  frame_state <= TX_HEADER_BYTES;
                 end if;
-                frame_state <= RX_DATA_BYTES;
               when TX_DATA_FRAME =>
-                if (trans_data_bytes >= c_msp_mtu) then
-                  frame_data_bytes <= to_unsigned(c_msp_mtu, frame_data_bytes'length);
+                if (i2c_op = '1') then
+                  if (trans_data_bytes >= c_msp_mtu) then
+                    frame_data_bytes <= to_unsigned(c_msp_mtu, frame_data_bytes'length);
+                  else
+                    frame_data_bytes <= trans_data_bytes;
+                  end if;
+                  i2c_tx_byte <= fid & c_msp_op_data_frame;
+                  tx_start_p <= '1';
+                  frame_state <= TX_DATA_BYTES;
                 else
-                  frame_data_bytes <= trans_data_bytes;
+                  frame_state <= RX_HEADER_BYTES;
+                  trans_unexp_rx_p <= '1';
                 end if;
-                i2c_tx_byte <= fid & c_msp_op_data_frame;
-                tx_start_p <= '1';
-                frame_state <= TX_DATA_BYTES;
               when others =>
                 null;
             end case;
