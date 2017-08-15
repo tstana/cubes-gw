@@ -215,6 +215,7 @@ architecture behav of mist_obc_interface is
   
   -- Implementation-specific signals
   signal frame_rxed_p           : std_logic;
+  signal frame_rxed_p_d0        : std_logic;
   signal frame_txed_p           : std_logic;
   signal frame_byte_count       : unsigned(f_log2_size(c_msp_mtu)-1 downto 0);
   signal frame_data_bytes       : unsigned(c_msp_dl_width-1 downto 0);
@@ -297,8 +298,10 @@ begin
       
       if (trans_unexp_rx_p = '1') then
         trans_state <= TRANS_HEADER;
+        
       elsif (trans_tx_null_p = '1') then
         trans_state <= TX_NULL_FRAME;
+        
       else
         
         case trans_state is
@@ -308,8 +311,24 @@ begin
               trans_state <= TRANS_HEADER;
             end if;
             
+          ----------------------------------------------------------------------
+          -- TRANS_HEADER - check received OPCODE and transition accordingly
+          ----------------------------------------------------------------------
+          -- The checking of the OPCODE is done once a frame has been
+          -- successfully received. The delayed version of frame_rxed_p is used
+          -- for checking the OPCODE and advancing the FSM, since the
+          -- transaction FSM can end up in the TRANS_HEADER state in case an
+          -- unexpected header frame is received instead of a data frame.
+          -- In such a case, we are expected to immediately respond to the
+          -- received frame, according to the MSP. The trans_unexp_rx_p signal
+          -- (asserted by the frame FSM) makes the transaction FSM go back to
+          -- TRANS_HEADER, but frame_rxed_p is asserted on the same cycle as
+          -- trans_unexp_rx_p, so if we were to check the undelayed version of
+          -- frame_rxed_p, it would be missed by the transaction FSM and the
+          -- OPCODE in the received header frame would not be decoded.
+          ----------------------------------------------------------------------
           when TRANS_HEADER =>
-            if (frame_rxed_p = '1') then
+            if (frame_rxed_p_d0 = '1') then
               tid <= fid;
               case rx_opcode is
                 when c_msp_op_null =>
@@ -414,6 +433,7 @@ begin
       frame_state <= WAIT_I2C_ADDR;
       
       frame_rxed_p <= '0';
+      frame_rxed_p_d0 <= '0';
       frame_txed_p <= '0';
       
       uart_wrapper_stop_p <= '0';
@@ -451,6 +471,10 @@ begin
       
       trans_unexp_rx_p <= '0';
       trans_tx_null_p <= '0';
+      
+      -- Delay frame_rxed_p - for use in TRANS_HEADER state in case an unexpected
+      -- header frame is received instead of data
+      frame_rxed_p_d0 <= frame_rxed_p;
       
       -- Buffer address increment after write; new transactions should write
       -- starting from buffer address 0.
@@ -653,6 +677,15 @@ begin
           else
             -- TODO: Check here for correct FID and signal error otherwise.
             fid <= rx_fid;
+            
+            -- Check that received OPCODE is DATA_FRAME and signal transaction
+            -- FSM in case of header frame, so it can be ready to decode the
+            -- received header. The frame RXed pulse is issued two clock cycles
+            -- after the trans_unexp_rx_p, so that the transaction FSM can
+            -- already be in the TRANS_HEADER state.
+            if (rx_opcode /= c_msp_op_data_frame) then
+              trans_unexp_rx_p <= '1';
+            end if;
             
             frame_rxed_p <= '1';
             ------------------------
